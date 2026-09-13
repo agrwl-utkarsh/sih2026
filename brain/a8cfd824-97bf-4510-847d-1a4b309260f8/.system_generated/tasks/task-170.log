@@ -1,0 +1,17 @@
+INFO:     Started server process [11608]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56244 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56244 - "GET /static/styles.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63146 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62203 - "POST /api/logs/ingest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57229 - "POST /api/logs/ingest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55533 - "POST /api/logs/ingest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65089 - "POST /api/logs/ingest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58990 - "POST /api/logs/ingest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56611 - "POST /api/logs/ingest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57235 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57235 - "GET /static/styles.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65437 - "GET /static/app.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:57037 - "POST /api/logs/ingest HTTP/1.1" 200 OK

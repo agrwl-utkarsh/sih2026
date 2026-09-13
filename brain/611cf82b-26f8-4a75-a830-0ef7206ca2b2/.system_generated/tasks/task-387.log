@@ -1,0 +1,6 @@
+Successfully scheduled one-shot timer.
+Expected to fire at: 2026-07-11T23:03:07+05:30
+Prompt: Checking server statuses after restart delay
+
+[2026-07-11T23:03:02+05:30] Still waiting. Remaining time: 5s
+[2026-07-11T23:03:07+05:30] Timer fired.

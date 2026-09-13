@@ -1,0 +1,25 @@
+# AI Smart Captioner - Tier 1 Implementation Tasks
+
+- `[x]` Step 1: Create Database Module (`backend/db.py`)
+  - `[x]` Define SQLite connection and schema creation
+  - `[x]` Set up tables: `videos`, `segments`, `presets`
+  - `[x]` Add seed data for default styling presets
+- `[x]` Step 2: Refactor Backend Server (`backend/app.py`)
+  - `[x]` Implement API endpoints:
+    - `[x]` `POST /api/upload` - starts Whisper transcribe in a background thread
+    - `[x]` `GET /api/videos/<id>` - checks status of transcription
+    - `[x]` `GET /api/videos/<id>/segments` - returns transcription segments
+    - `[x]` `PUT /api/videos/<id>/segments` - saves modified segments
+    - `[x]` Presets CRUD (`GET /api/presets`, `POST /api/presets`, `DELETE /api/presets/<id>`)
+    - `[x]` `POST /api/videos/<id>/burn` - uses FFmpeg to burn subtitles using custom options
+    - `[x]` `POST /api/videos/<id>/export` - downloads subtitles as SRT/VTT/JSON
+- `[x]` Step 3: Implement Frontend UI Components (`frontend/src/App.js` & `App.css`)
+  - `[x]` Redesign workspace layout (sidebar style editor, video player/preview, timeline editor)
+  - `[x]` Build Font Style Editor and Preset Selector
+  - `[x]` Build Subtitle Editor Timeline (interactive text, timing inputs, speaker tag selector, jump-to-time)
+  - `[x]` Build Video Preview with Real-time CSS Styled Subtitle Overlay
+- `[x]` Step 4: Verification and Polish
+  - `[x]` Verify database storage of videos and presets
+  - `[x]` Verify background transcription is asynchronous and status-monitored
+  - `[x]` Verify editing/saving segments works
+  - `[x]` Verify export and FFmpeg video render functions

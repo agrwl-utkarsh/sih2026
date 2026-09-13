@@ -1,0 +1,1281 @@
+diff --git a/backend/app.py b/backend/app.py
+index e908e5b..e02b520 100644
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -4,480 +4,101 @@ import shutil
+ import torch
+ import whisper
+ import datetime
+-import threading
+-import uuid
+ from flask import Flask, request, jsonify, send_from_directory
+ from flask_cors import CORS
+-import db
+ 
+ app = Flask(__name__)
+-# Enable CORS for all routes and allow typical headers
+-CORS(app, resources={r"/*": {"origins": "*"}})
++CORS(app)
+ 
++# --- SETUP DIRECTORIES ---
+ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+ UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+ OUTPUT_FOLDER = os.path.join(BASE_DIR, 'outputs')
+ 
+-# Initialize DB structure
+-db.init_db()
+-
+ def startup_cleanup():
+-    # Keep directory structure but clean file uploads/outputs on start if desired.
+-    # Note: For production we wouldn't wipe existing ones, but for local MVP it keeps it clean.
+     for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER]:
+-        if not os.path.exists(folder):
+-            os.makedirs(folder)
++        if os.path.exists(folder):
++            shutil.rmtree(folder)
++        os.makedirs(folder)
+ 
+ startup_cleanup()
+ 
+-# Load Whisper - Optimized for Hindi + English
++# --- AI ENGINE ---
+ device = "cuda" if torch.cuda.is_available() else "cpu"
+-print(f"--- AI ENGINE: {device.upper()} (Hindi/English Support) ---")
++print(f"--- NEXGRO ENGINE: {device.upper()} (Hindi/English Support) ---")
+ model = whisper.load_model("base", device=device)
+ 
+-# Global lock for Whisper to prevent multi-thread execution conflicts
+-transcribe_lock = threading.Lock()
+-
+-def web_to_ass_color(web_hex, opacity=1.0):
+-    """Converts #RRGGBB and opacity (0.0 to 1.0) to ASS format &H[Alpha]BBGGRR
+-    Note that ASS alpha is reversed (00 = fully opaque, FF = fully transparent)
+-    """
++def web_to_ffmpeg_color(web_hex):
++    """Converts standard Hex #RRGGBB to FFmpeg's &H00BBGGRR format"""
+     hex_val = web_hex.lstrip('#')
+-    if len(hex_val) == 3:
+-        hex_val = "".join([c*2 for c in hex_val])
+     r, g, b = hex_val[0:2], hex_val[2:4], hex_val[4:6]
+-    
+-    # Calculate inverse alpha for ASS (0 = fully opaque, 255 = fully transparent)
+-    alpha_int = int((1.0 - opacity) * 255)
+-    alpha_hex = f"{alpha_int:02X}"
+-    return f"&H{alpha_hex}{b}{g}{r}"
+-
+-def format_timestamp_srt(seconds: float):
+-    td = datetime.timedelta(seconds=seconds)
+-    ts = int(td.total_seconds())
+-    ms = int(td.microseconds / 1000)
+-    return f"{ts//3600:02d}:{(ts%3600)//60:02d}:{ts%60:02d},{ms:03d}"
++    return f"&H00{b}{g}{r}"
+ 
+-def format_timestamp_vtt(seconds: float):
++def format_timestamp(seconds: float):
+     td = datetime.timedelta(seconds=seconds)
+     ts = int(td.total_seconds())
+-    ms = int(td.microseconds / 1000)
+-    return f"{ts//3600:02d}:{(ts%3600)//60:02d}:{ts%60:02d}.{ms:03d}"
+-
+-def run_transcription(video_id, video_path, language):
+-    with transcribe_lock:
+-        conn = db.get_db()
+-        cursor = conn.cursor()
+-        try:
+-            cursor.execute("UPDATE videos SET status = 'transcribing' WHERE id = ?", (video_id,))
+-            conn.commit()
+-            
+-            options = {}
+-            if language and language != 'auto':
+-                options['language'] = language
+-                
+-            result = model.transcribe(video_path, **options)
+-            
+-            speaker = "Speaker 1"
+-            last_end = 0.0
+-            
+-            for i, s in enumerate(result['segments']):
+-                text = s['text'].strip()
+-                start = s['start']
+-                end = s['end']
+-                
+-                # Heuristic Speaker Diarization based on gaps/silence
+-                if start - last_end > 1.8:
+-                    speaker = "Speaker 2" if speaker == "Speaker 1" else "Speaker 1"
+-                
+-                cursor.execute("""
+-                    INSERT INTO segments (video_id, start_time, end_time, text, speaker, display_order)
+-                    VALUES (?, ?, ?, ?, ?, ?)
+-                """, (video_id, start, end, text, speaker, i + 1))
+-                last_end = end
+-                
+-            cursor.execute("UPDATE videos SET status = 'completed' WHERE id = ?", (video_id,))
+-            conn.commit()
+-        except Exception as e:
+-            print(f"Error transcribing {video_id}: {str(e)}")
+-            cursor.execute("UPDATE videos SET status = 'error', error_message = ? WHERE id = ?", (str(e), video_id))
+-            conn.commit()
+-        finally:
+-            conn.close()
+-
+-# STATIC FILE SERVERS
+-@app.route('/uploads/<filename>')
+-def serve_upload(filename):
+-    return send_from_directory(UPLOAD_FOLDER, filename)
+-
+-@app.route('/outputs/<filename>')
+-def serve_output(filename):
+-    return send_from_directory(OUTPUT_FOLDER, filename)
++    return f"{ts//3600:02d}:{(ts%3600)//60:02d}:{ts%60:02d},{int(td.microseconds/1000):03d}"
+ 
+ @app.route('/download/<filename>')
+ def download_file(filename):
+     return send_from_directory(OUTPUT_FOLDER, filename, as_attachment=True)
+ 
+-# VIDEOS ENDPOINTS
+-@app.route('/api/upload', methods=['POST'])
+-def upload_video():
++@app.route('/transcribe', methods=['POST'])
++def transcribe():
+     if 'video' not in request.files:
+         return jsonify({"error": "No video file provided"}), 400
+-        
+-    file = request.files['video']
+-    if file.filename == '':
+-        return jsonify({"error": "Empty filename"}), 400
+-        
+-    language = request.form.get('language', 'auto')
+     
+-    # Generate unique ID
+-    video_id = str(uuid.uuid4())
+-    ext = os.path.splitext(file.filename)[1]
+-    safe_filename = f"{video_id}{ext}"
+-    video_path = os.path.join(UPLOAD_FOLDER, safe_filename)
++    file = request.files['video']
++    # Get styles from Frontend
++    f_color = web_to_ffmpeg_color(request.form.get('fontColor', '#FFFFFF'))
++    b_color = web_to_ffmpeg_color(request.form.get('borderColor', '#FF5C35'))
++    f_size = request.form.get('fontSize', '28')
++    f_family = request.form.get('fontFamily', 'Arial')
++    b_style = request.form.get('bgType', '1') 
++    
++    video_filename = file.filename
++    clean_name = "".join([c if c.isalnum() else "_" for c in os.path.splitext(video_filename)[0]])
++    video_path = os.path.join(UPLOAD_FOLDER, video_filename)
++    srt_path = os.path.join(UPLOAD_FOLDER, f"{clean_name}.srt")
++    out_name = f"captioned_{clean_name}.mp4"
++    out_path = os.path.join(OUTPUT_FOLDER, out_name)
+     
+     file.save(video_path)
+-    
+-    # Insert pending status in DB
+-    conn = db.get_db()
+-    cursor = conn.cursor()
+-    cursor.execute("""
+-        INSERT INTO videos (id, filename, status)
+-        VALUES (?, ?, ?)
+-    """, (video_id, file.filename, 'pending'))
+-    conn.commit()
+-    conn.close()
+-    
+-    # Spawn background thread for Whisper transcription
+-    thread = threading.Thread(target=run_transcription, args=(video_id, video_path, language))
+-    thread.start()
+-    
+-    return jsonify({
+-        "videoId": video_id,
+-        "filename": file.filename,
+-        "videoUrl": f"http://localhost:5000/uploads/{safe_filename}",
+-        "status": "pending"
+-    })
+-
+-@app.route('/api/videos/<video_id>', methods=['GET'])
+-def get_video_status(video_id):
+-    conn = db.get_db()
+-    cursor = conn.cursor()
+-    cursor.execute("SELECT id, filename, status, error_message, created_at FROM videos WHERE id = ?", (video_id,))
+-    row = cursor.fetchone()
+-    conn.close()
+-    
+-    if not row:
+-        return jsonify({"error": "Video not found"}), 404
+-        
+-    # Get ext of video to return URL
+-    ext = ""
+-    for file in os.listdir(UPLOAD_FOLDER):
+-        if file.startswith(video_id):
+-            ext = os.path.splitext(file)[1]
+-            break
+-            
+-    video_url = f"http://localhost:5000/uploads/{video_id}{ext}" if ext else ""
+-    
+-    return jsonify({
+-        "id": row["id"],
+-        "filename": row["filename"],
+-        "status": row["status"],
+-        "error_message": row["error_message"],
+-        "created_at": row["created_at"],
+-        "videoUrl": video_url
+-    })
+-
+-@app.route('/api/videos/<video_id>/segments', methods=['GET'])
+-def get_video_segments(video_id):
+-    conn = db.get_db()
+-    cursor = conn.cursor()
+-    cursor.execute("SELECT * FROM segments WHERE video_id = ? ORDER BY display_order ASC", (video_id,))
+-    rows = cursor.fetchall()
+-    conn.close()
+-    
+-    segments = []
+-    for r in rows:
+-        segments.append({
+-            "id": r["id"],
+-            "video_id": r["video_id"],
+-            "start_time": r["start_time"],
+-            "end_time": r["end_time"],
+-            "text": r["text"],
+-            "speaker": r["speaker"],
+-            "display_order": r["display_order"]
+-        })
+-    return jsonify({"segments": segments})
+-
+-@app.route('/api/videos/<video_id>/segments', methods=['PUT'])
+-def update_video_segments(video_id):
+-    data = request.json
+-    if not data or 'segments' not in data:
+-        return jsonify({"error": "Missing segments in request body"}), 400
+-        
+-    conn = db.get_db()
+-    cursor = conn.cursor()
+-    try:
+-        # Check if video exists
+-        cursor.execute("SELECT id FROM videos WHERE id = ?", (video_id,))
+-        if not cursor.fetchone():
+-            return jsonify({"error": "Video not found"}), 404
+-            
+-        # Delete old segments
+-        cursor.execute("DELETE FROM segments WHERE video_id = ?", (video_id,))
+-        
+-        # Insert new segments
+-        for i, s in enumerate(data['segments']):
+-            cursor.execute("""
+-                INSERT INTO segments (video_id, start_time, end_time, text, speaker, display_order)
+-                VALUES (?, ?, ?, ?, ?, ?)
+-            """, (video_id, float(s['start_time']), float(s['end_time']), s['text'].strip(), s['speaker'].strip(), i + 1))
+-            
+-        conn.commit()
+-        return jsonify({"success": True, "message": f"Successfully updated {len(data['segments'])} segments."})
+-    except Exception as e:
+-        conn.rollback()
+-        return jsonify({"error": str(e)}), 500
+-    finally:
+-        conn.close()
+-
+-# PRESETS ENDPOINTS
+-@app.route('/api/presets', methods=['GET'])
+-def get_presets():
+-    conn = db.get_db()
+-    cursor = conn.cursor()
+-    cursor.execute("SELECT * FROM presets ORDER BY id ASC")
+-    rows = cursor.fetchall()
+-    conn.close()
+-    
+-    presets = []
+-    for r in rows:
+-        presets.append({
+-            "id": r["id"],
+-            "name": r["name"],
+-            "font_color": r["font_color"],
+-            "border_color": r["border_color"],
+-            "font_size": r["font_size"],
+-            "border_width": r["border_width"],
+-            "font_family": r["font_family"],
+-            "bg_color": r["bg_color"],
+-            "bg_opacity": r["bg_opacity"],
+-            "bold": bool(r["bold"]),
+-            "italic": bool(r["italic"])
+-        })
+-    return jsonify(presets)
+ 
+-@app.route('/api/presets', methods=['POST'])
+-def save_preset():
+-    data = request.json
+-    if not data or 'name' not in data:
+-        return jsonify({"error": "Missing preset name"}), 400
+-        
+-    conn = db.get_db()
+-    cursor = conn.cursor()
+-    try:
+-        cursor.execute("""
+-            INSERT OR REPLACE INTO presets 
+-            (name, font_color, border_color, font_size, border_width, font_family, bg_color, bg_opacity, bold, italic)
+-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+-        """, (
+-            data['name'].strip(),
+-            data['font_color'],
+-            data['border_color'],
+-            int(data['font_size']),
+-            float(data['border_width']),
+-            data['font_family'],
+-            data.get('bg_color', '#000000'),
+-            float(data.get('bg_opacity', 0.0)),
+-            1 if data.get('bold') else 0,
+-            1 if data.get('italic') else 0
+-        ))
+-        conn.commit()
+-        return jsonify({"success": True})
+-    except Exception as e:
+-        conn.rollback()
+-        return jsonify({"error": str(e)}), 500
+-    finally:
+-        conn.close()
+-
+-@app.route('/api/presets/<int:preset_id>', methods=['DELETE'])
+-def delete_preset(preset_id):
+-    conn = db.get_db()
+-    cursor = conn.cursor()
+     try:
+-        cursor.execute("DELETE FROM presets WHERE id = ?", (preset_id,))
+-        conn.commit()
+-        return jsonify({"success": True})
+-    except Exception as e:
+-        conn.rollback()
+-        return jsonify({"error": str(e)}), 500
+-    finally:
+-        conn.close()
++        # 1. AI TRANSCRIPTION
++        print(f"--- Processing Video: {video_filename} ---")
++        result = model.transcribe(video_path)
+ 
+-# EXPORT / BURN ENDPOINTS
+-@app.route('/api/videos/<video_id>/export', methods=['POST'])
+-def export_captions(video_id):
+-    data = request.json or {}
+-    export_format = data.get('format', 'srt').lower()
+-    show_speakers = bool(data.get('showSpeakerLabels', False))
+-    
+-    conn = db.get_db()
+-    cursor = conn.cursor()
+-    cursor.execute("SELECT * FROM segments WHERE video_id = ? ORDER BY display_order ASC", (video_id,))
+-    rows = cursor.fetchall()
+-    conn.close()
+-    
+-    if not rows:
+-        return jsonify({"error": "No caption segments found. Did you transcribe first?"}), 404
++        # 2. GENERATE SRT FILE
++        srt_content = ""
++        for i, s in enumerate(result['segments']):
++            srt_content += f"{i+1}\n{format_timestamp(s['start'])} --> {format_timestamp(s['end'])}\n{s['text'].strip()}\n\n"
+         
+-    out_filename = f"{video_id}_export.{export_format}"
+-    out_path = os.path.join(OUTPUT_FOLDER, out_filename)
+-    
+-    try:
+-        if export_format == 'srt':
+-            content = ""
+-            for i, r in enumerate(rows):
+-                text = r['text']
+-                if show_speakers:
+-                    text = f"[{r['speaker']}]: {text}"
+-                content += f"{i+1}\n{format_timestamp_srt(r['start_time'])} --> {format_timestamp_srt(r['end_time'])}\n{text}\n\n"
+-            with open(out_path, 'w', encoding='utf-8') as f:
+-                f.write(content)
+-                
+-        elif export_format == 'vtt':
+-            content = "WEBVTT\n\n"
+-            for i, r in enumerate(rows):
+-                text = r['text']
+-                if show_speakers:
+-                    text = f"[{r['speaker']}]: {text}"
+-                content += f"{i+1}\n{format_timestamp_vtt(r['start_time'])} --> {format_timestamp_vtt(r['end_time'])}\n{text}\n\n"
+-            with open(out_path, 'w', encoding='utf-8') as f:
+-                f.write(content)
+-                
+-        elif export_format == 'json':
+-            import json
+-            segments_list = []
+-            for r in rows:
+-                segments_list.append({
+-                    "start": r['start_time'],
+-                    "end": r['end_time'],
+-                    "text": r['text'],
+-                    "speaker": r['speaker']
+-                })
+-            with open(out_path, 'w', encoding='utf-8') as f:
+-                json.dump(segments_list, f, indent=2)
+-                
+-        else:
+-            return jsonify({"error": f"Unsupported format: {export_format}"}), 400
+-            
+-        return jsonify({"downloadUrl": f"http://localhost:5000/download/{out_filename}"})
+-    except Exception as e:
+-        return jsonify({"error": str(e)}), 500
++        with open(srt_path, "w", encoding="utf-8") as f:
++            f.write(srt_content)
+ 
+-def run_burning(video_id, video_path, srt_path, style_str, show_speakers, out_path):
+-    conn = db.get_db()
+-    cursor = conn.cursor()
+-    try:
+-        # Generate styled SRT content from database segments
+-        cursor.execute("SELECT * FROM segments WHERE video_id = ? ORDER BY display_order ASC", (video_id,))
+-        rows = cursor.fetchall()
++        # 3. FFmpeg RENDER (BURNING SUBTITLES)
++        # Alignment 2 = Bottom Center
++        style_str = (
++            f"FontName={f_family},FontSize={f_size},PrimaryColour={f_color},"
++            f"BackColour={b_color},OutlineColour={b_color},"
++            f"BorderStyle={b_style},Outline=2,Shadow=1,Alignment=2,Bold=1"
++        )
+         
+-        srt_content = ""
+-        for i, r in enumerate(rows):
+-            text = r['text']
+-            if show_speakers:
+-                text = f"[{r['speaker']}]: {text}"
+-            srt_content += f"{i+1}\n{format_timestamp_srt(r['start_time'])} --> {format_timestamp_srt(r['end_time'])}\n{text}\n\n"
+-            
+-        with open(srt_path, 'w', encoding='utf-8') as f:
+-            f.write(srt_content)
+-            
++        # Path safety for Windows
+         safe_srt = srt_path.replace('\\', '/').replace(':', '\\:')
+-        
+-        # Use superfast preset for optimized background rendering speed
+         cmd = [
+-            'ffmpeg', '-y', '-i', video_path,
+-            '-vf', f"subtitles='{safe_srt}':force_style='{style_str}'",
+-            '-c:v', 'libx264', '-preset', 'superfast',
++            'ffmpeg', '-y', '-i', video_path, 
++            '-vf', f"subtitles='{safe_srt}':force_style='{style_str}'", 
+             '-c:a', 'copy', out_path
+         ]
+         
+-        print(f"Executing FFmpeg for {video_id}: {' '.join(cmd)}")
+-        res = subprocess.run(cmd, capture_output=True, text=True)
+-        
+-        if res.returncode != 0:
+-            raise Exception(res.stderr)
+-            
+-        cursor.execute("UPDATE videos SET status = 'completed', error_message = NULL WHERE id = ?", (video_id,))
+-        conn.commit()
++        subprocess.run(cmd, check=True)
++        return jsonify({"videoUrl": f"http://localhost:5000/download/{out_name}"})
+     except Exception as e:
+-        print(f"Burn error for {video_id}: {str(e)}")
+-        cursor.execute("UPDATE videos SET status = 'error', error_message = ? WHERE id = ?", (str(e), video_id))
+-        conn.commit()
+-    finally:
+-        conn.close()
+-
+-@app.route('/api/videos/<video_id>/burn', methods=['POST'])
+-def burn_captions(video_id):
+-    data = request.json or {}
+-    show_speakers = bool(data.get('showSpeakerLabels', False))
+-    
+-    font_color = web_to_ass_color(data.get('fontColor', '#FFFF00'), 1.0)
+-    border_color = web_to_ass_color(data.get('borderColor', '#000000'), 1.0)
+-    font_size = int(data.get('fontSize', 24))
+-    border_width = float(data.get('borderWidth', 1.5))
+-    font_family = data.get('fontFamily', 'Inter')
+-    bg_color = web_to_ass_color(data.get('bgColor', '#000000'), float(data.get('bgOpacity', 0.0)))
+-    bold = 1 if data.get('bold') else 0
+-    italic = 1 if data.get('italic') else 0
+-    
+-    bg_opacity = float(data.get('bgOpacity', 0.0))
+-    border_style = 3 if bg_opacity > 0.0 else 1
+-    
+-    ext = ""
+-    for file in os.listdir(UPLOAD_FOLDER):
+-        if file.startswith(video_id) and not file.endswith('.srt') and not file.startswith('captioned_'):
+-            ext = os.path.splitext(file)[1]
+-            break
+-            
+-    if not ext:
+-        return jsonify({"error": "Original video not found"}), 404
+-        
+-    video_path = os.path.join(UPLOAD_FOLDER, f"{video_id}{ext}")
+-    srt_path = os.path.join(UPLOAD_FOLDER, f"{video_id}_temp.srt")
+-    out_filename = f"captioned_{video_id}.mp4"
+-    out_path = os.path.join(OUTPUT_FOLDER, out_filename)
+-    
+-    style_str = (
+-        f"Fontname={font_family},FontSize={font_size},PrimaryColour={font_color},"
+-        f"OutlineColour={border_color},BackColour={bg_color},BorderStyle={border_style},"
+-        f"Outline={border_width},Shadow=1,Alignment=2,Bold={bold},Italic={italic}"
+-    )
+-    
+-    # Mark status as rendering
+-    conn = db.get_db()
+-    cursor = conn.cursor()
+-    cursor.execute("UPDATE videos SET status = 'rendering', error_message = NULL WHERE id = ?", (video_id,))
+-    conn.commit()
+-    conn.close()
+-    
+-    if os.path.exists(out_path):
+-        try:
+-            os.remove(out_path)
+-        except:
+-            pass
+-            
+-    # Spawn burning thread
+-    thread = threading.Thread(
+-        target=run_burning, 
+-        args=(video_id, video_path, srt_path, style_str, show_speakers, out_path)
+-    )
+-    thread.start()
+-    
+-    return jsonify({
+-        "status": "rendering",
+-        "message": "Video rendering started in background."
+-    })
++        print(f"Error: {e}")
++        return jsonify({"error": str(e)}), 500
+ 
+ if __name__ == '__main__':
+     app.run(debug=True, port=5000)
+\ No newline at end of file
+diff --git a/backend/captions.db b/backend/captions.db
+index afb6642..ea6186b 100644
+Binary files a/backend/captions.db and b/backend/captions.db differ
+diff --git a/frontend/src/App.js b/frontend/src/App.js
+index b53b0eb..50ccf94 100644
+--- a/frontend/src/App.js
++++ b/frontend/src/App.js
+@@ -1,606 +1,166 @@
+-import React, { useState, useEffect, useRef, useMemo } from 'react';
++import React, { useState, useEffect } from 'react';
+ import axios from 'axios';
+-import { 
+-  Download, FileVideo, Trash2, 
+-  Globe, Sliders, Sparkles, RotateCcw, UploadCloud, Type
+-} from 'lucide-react';
+ import './App.css';
+ 
+-// Hex to RGB converter helper for transparency
+-const hexToRgb = (hex) => {
+-  const bigint = parseInt(hex.replace('#', ''), 16);
+-  if (isNaN(bigint)) return "0, 0, 0";
+-  const r = (bigint >> 16) & 255;
+-  const g = (bigint >> 8) & 255;
+-  const b = bigint & 255;
+-  return `${r}, ${g}, ${b}`;
+-};
+-
+ function App() {
+-  // App Workflow States
+   const [file, setFile] = useState(null);
+-  const [uploading, setUploading] = useState(false);
+-  const [transcribing, setTranscribing] = useState(false);
+-  const [videoId, setVideoId] = useState(null);
+-  const [videoData, setVideoData] = useState(null); // Metadata from backend
+-  const [segments, setSegments] = useState([]);
+-  
+-  // Player Sync State
+-  const [currentTime, setCurrentTime] = useState(0);
+-  const videoRef = useRef(null);
+-
+-  // Transcription Language
+-  const [language, setLanguage] = useState('auto');
+-  
+-  // Custom Styles state
+-  const [fontColor, setFontColor] = useState("#ffff00");
+-  const [borderColor, setBorderColor] = useState("#000000");
+-  const [fontSize, setFontSize] = useState(24);
+-  const [borderWidth, setBorderWidth] = useState(1.5);
+-  const [fontFamily, setFontFamily] = useState("Inter");
+-  const [bgColor, setBgColor] = useState("#000000");
+-  const [bgOpacity, setBgOpacity] = useState(0.0);
+-  const [bold, setBold] = useState(true);
+-  const [italic, setItalic] = useState(false);
+-  const [showSpeakerLabels, setShowSpeakerLabels] = useState(false);
+-  
+-  // Presets State
+-  const [presets, setPresets] = useState([]);
+-  const [newPresetName, setNewPresetName] = useState("");
+-  const [selectedPresetId, setSelectedPresetId] = useState("");
+-  
+-  // Render / Burn state
+-  const [rendering, setRendering] = useState(false);
+-  const [renderedVideoUrl, setRenderedVideoUrl] = useState("");
++  const [videoUrl, setVideoUrl] = useState("");
++  const [loading, setLoading] = useState(false);
++  const [progress, setProgress] = useState(0);
+   
+-  // Fetch Presets on Mount
+-  useEffect(() => {
+-    fetchPresets();
+-  }, []);
+-
+-  const fetchPresets = async () => {
+-    try {
+-      const res = await axios.get('http://localhost:5000/api/presets');
+-      setPresets(res.data);
+-    } catch (err) {
+-      console.error("Failed to load presets", err);
+-    }
+-  };
+-
+-  const applyPreset = (preset) => {
+-    setFontColor(preset.font_color);
+-    setBorderColor(preset.border_color);
+-    setFontSize(preset.font_size);
+-    setBorderWidth(preset.border_width);
+-    setFontFamily(preset.font_family);
+-    setBgColor(preset.bg_color);
+-    setBgOpacity(preset.bg_opacity);
+-    setBold(preset.bold);
+-    setItalic(preset.italic);
+-    setSelectedPresetId(preset.id);
+-  };
+-
+-  const saveCustomPreset = async () => {
+-    if (!newPresetName.trim()) return alert("Enter preset name!");
+-    try {
+-      await axios.post('http://localhost:5000/api/presets', {
+-        name: newPresetName.trim(),
+-        font_color: fontColor,
+-        border_color: borderColor,
+-        font_size: fontSize,
+-        border_width: borderWidth,
+-        font_family: fontFamily,
+-        bg_color: bgColor,
+-        bg_opacity: bgOpacity,
+-        bold: bold,
+-        italic: italic
+-      });
+-      setNewPresetName("");
+-      fetchPresets();
+-      alert("Preset saved!");
+-    } catch (err) {
+-      alert("Failed to save preset");
+-    }
+-  };
+-
+-  const deletePreset = async (id, e) => {
+-    e.stopPropagation();
+-    try {
+-      await axios.delete(`http://localhost:5000/api/presets/${id}`);
+-      fetchPresets();
+-    } catch (err) {
+-      alert("Failed to delete preset");
+-    }
+-  };
+-
+-  // Upload Handlers
+-  const handleUpload = async () => {
+-    if (!file) return alert("Please select a video!");
+-    setUploading(true);
+-    setRenderedVideoUrl("");
+-    
++  // Style Engine States
++  const [fontColor, setFontColor] = useState("#ffffff");
++  const [borderColor, setBorderColor] = useState("#ff5c35");
++  const [fontSize, setFontSize] = useState(32);
++  const [fontFamily, setFontFamily] = useState("Impact");
++  const [bgType, setBgType] = useState("1");
++
++  const generateCaptions = async () => {
++    if (!file) return;
++    setLoading(true);
++    setVideoUrl("");
+     const formData = new FormData();
+     formData.append('video', file);
+-    formData.append('language', language);
+-    
+-    try {
+-      const res = await axios.post('http://localhost:5000/api/upload', formData, {
+-        headers: { 'Content-Type': 'multipart/form-data' }
+-      });
+-      setVideoId(res.data.videoId);
+-      setUploading(false);
+-      setTranscribing(true);
+-      startPollingStatus(res.data.videoId);
+-    } catch (err) {
+-      alert("Upload failed. Make sure backend is running on http://localhost:5000.");
+-      setUploading(false);
+-    }
+-  };
++    formData.append('fontColor', fontColor);
++    formData.append('borderColor', borderColor);
++    formData.append('fontSize', fontSize);
++    formData.append('fontFamily', fontFamily);
++    formData.append('bgType', bgType);
+ 
+-  const startPollingStatus = (id) => {
+-    const timer = setInterval(async () => {
+-      try {
+-        const res = await axios.get(`http://localhost:5000/api/videos/${id}`);
+-        setVideoData(res.data);
+-        if (res.data.status === 'completed') {
+-          clearInterval(timer);
+-          setTranscribing(false);
+-          fetchSegments(id);
+-        } else if (res.data.status === 'error') {
+-          clearInterval(timer);
+-          setTranscribing(false);
+-          alert("Whisper AI error: " + res.data.error_message);
+-        }
+-      } catch (err) {
+-        clearInterval(timer);
+-        setTranscribing(false);
+-        alert("Error reading video status.");
+-      }
+-    }, 2000);
+-  };
+-
+-  const fetchSegments = async (id) => {
+     try {
+-      const res = await axios.get(`http://localhost:5000/api/videos/${id}/segments`);
+-      setSegments(res.data.segments);
+-    } catch (err) {
+-      alert("Failed to load transcribed segments");
+-    }
+-  };
+-
+-  // Subtitle Overlay TextShadow outline generation
+-  const textOutlineShadow = useMemo(() => {
+-    if (borderWidth === 0) return 'none';
+-    return `
+-      -${borderWidth}px -${borderWidth}px 0 ${borderColor},
+-       ${borderWidth}px -${borderWidth}px 0 ${borderColor},
+-      -${borderWidth}px  ${borderWidth}px 0 ${borderColor},
+-       ${borderWidth}px  ${borderWidth}px 0 ${borderColor},
+-       0px -${borderWidth}px 0 ${borderColor},
+-       0px  ${borderWidth}px 0 ${borderColor},
+-      -${borderWidth}px  0px 0 ${borderColor},
+-       ${borderWidth}px  0px 0 ${borderColor}
+-    `;
+-  }, [borderWidth, borderColor]);
+-
+-  // Find active segment in player time
+-  const activeSegment = useMemo(() => {
+-    return segments.find(s => currentTime >= s.start_time && currentTime <= s.end_time);
+-  }, [segments, currentTime]);
+-
+-  // Actions
+-  const handleExport = async (format) => {
+-    try {
+-      const res = await axios.post(`http://localhost:5000/api/videos/${videoId}/export`, {
+-        format,
+-        showSpeakerLabels
++      const res = await axios.post('http://localhost:5000/transcribe', formData, {
++        onUploadProgress: (p) => setProgress(Math.round((p.loaded * 100) / p.total) * 0.9)
+       });
+-      window.open(res.data.downloadUrl);
+-    } catch (err) {
+-      alert("Failed to export subtitles");
+-    }
+-  };
+-
+-  const startPollingRenderStatus = (id) => {
+-    const timer = setInterval(async () => {
+-      try {
+-        const res = await axios.get(`http://localhost:5000/api/videos/${id}`);
+-        if (res.data.status === 'completed' && res.data.renderedUrl) {
+-          clearInterval(timer);
+-          setRenderedVideoUrl(res.data.renderedUrl);
+-          setRendering(false);
+-          alert("Video rendered successfully!");
+-        } else if (res.data.status === 'error') {
+-          clearInterval(timer);
+-          setRendering(false);
+-          alert("FFmpeg render failed:\n" + res.data.error_message);
+-        }
+-      } catch (err) {
+-        clearInterval(timer);
+-        setRendering(false);
+-        alert("Error polling render status.");
+-      }
+-    }, 2000);
+-  };
+-
+-  const handleBurnVideo = async () => {
+-    setRendering(true);
+-    setRenderedVideoUrl("");
+-    try {
+-      const res = await axios.post(`http://localhost:5000/api/videos/${videoId}/burn`, {
+-        fontColor,
+-        borderColor,
+-        fontSize,
+-        borderWidth,
+-        fontFamily,
+-        bgColor,
+-        bgOpacity,
+-        bold,
+-        italic,
+-        showSpeakerLabels
+-      });
+-      if (res.data.status === 'rendering') {
+-        startPollingRenderStatus(videoId);
+-      }
+-    } catch (err) {
+-      alert("FFmpeg render failed to start. Make sure backend is running.");
+-      setRendering(false);
+-    }
+-  };
+-
+-  const resetAll = () => {
+-    setFile(null);
+-    setVideoId(null);
+-    setVideoData(null);
+-    setSegments([]);
+-    setRenderedVideoUrl("");
++      setVideoUrl(res.data.videoUrl);
++      setProgress(100);
++    } catch (err) { alert("Engine error"); }
++    finally { setLoading(false); }
+   };
+ 
+   return (
+-    <div className="app-container">
+-      {/* Navigation Header */}
+-      <header className="navbar">
++    <div className="nexgro-site">
++      {/* 1. STICKY NAVIGATION */}
++      <nav className="navbar">
+         <div className="nav-container">
+-          <div className="logo">
+-            ≡ƒÄ¼ <span>AI SMART CAPTIONER</span>
++          <div className="logo">NEX<span>GRO</span></div>
++          <div className="nav-links">
++            <a href="#features">Features</a>
++            <a href="#engine">The Engine</a>
++            <a href="#pricing">Pricing</a>
++            <button className="nav-btn">Get Started ΓÇö</button>
++          </div>
++        </div>
++      </nav>
++
++      {/* 2. HERO SECTION */}
++      <header className="hero">
++        <div className="hero-content">
++          <div className="badge">AI-POWERED VIDEO ENGINE</div>
++          <h1>Growth-Focused <br/><span>AI Captioning</span> For Modern Brands.</h1>
++          <p>We help ambitious creators build trust, lead conversions, and scale with data-driven AI subtitling technology.</p>
++          <div className="hero-btns">
++            <a href="#engine" className="btn-primary">Launch Engine ΓÇö</a>
++            <button className="btn-secondary">View Case Studies</button>
+           </div>
+-          {videoData && (
+-            <div className="nav-actions">
+-              <button className="btn-outline" onClick={resetAll}>
+-                <RotateCcw size={16} /> Start Over
+-              </button>
+-            </div>
+-          )}
+         </div>
+       </header>
+ 
+-      {/* Main Container */}
+-      {!videoData ? (
+-        // UPLOAD & INIT SCREEN
+-        <main className="hero-section">
+-          <div className="glass-card upload-container">
+-            <div className="badge">Week 1 Tier 1 Powered</div>
+-            <h2>Create Styled Captions in Seconds</h2>
+-            <p>Upload your English/Hindi video and let AI handle transcription. Edit and style captions in real-time.</p>
+-
+-            <div className="settings-row">
+-              <div className="setting-control">
+-                <label><Globe size={14} /> AI Model Language</label>
+-                <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+-                  <option value="auto">≡ƒîì Auto-Detect Language</option>
+-                  <option value="en">English (EN)</option>
+-                  <option value="hi">Hindi (HI)</option>
+-                  <option value="es">Spanish (ES)</option>
+-                  <option value="fr">French (FR)</option>
+-                </select>
+-              </div>
+-            </div>
+-
+-            <div className="upload-box">
+-              <input 
+-                type="file" 
+-                id="video-file" 
+-                accept="video/*" 
+-                onChange={(e) => setFile(e.target.files[0])} 
+-                hidden 
+-              />
+-              <label htmlFor="video-file" className="dropzone">
+-                <UploadCloud size={40} className="upload-icon" />
+-                <span>{file ? `Γ£à ${file.name}` : "Click to select MP4/MKV video"}</span>
+-                <p>Support up to 100MB videos</p>
+-              </label>
+-            </div>
+-
+-            {file && !uploading && !transcribing && (
+-              <button onClick={handleUpload} className="btn-primary start-btn">
+-                <Sparkles size={18} /> Transcribe Video
+-              </button>
+-            )}
+-
+-            {/* Uploading progress states */}
+-            {uploading && (
+-              <div className="loading-state">
+-                <div className="pulse-loader"></div>
+-                <p>Uploading raw video to server...</p>
+-              </div>
+-            )}
+-
+-            {transcribing && (
+-              <div className="loading-state">
+-                <div className="pulse-loader border-orange"></div>
+-                <p>AI Transcribing via Whisper... (May take a moment)</p>
+-                <div className="info-badge">Do not refresh this page.</div>
+-              </div>
+-            )}
++      {/* 3. FEATURE BENTO GRID */}
++      <section className="features" id="features">
++        <div className="section-header">
++          <label>Performance Services</label>
++          <h2>Drive Business Growth</h2>
++        </div>
++        <div className="grid-container">
++          <div className="feature-card">
++            <div className="card-icon">01</div>
++            <h3>AI Transcription</h3>
++            <p>Smart Hindi & English detection designed to drive qualified traffic.</p>
+           </div>
+-        </main>
+-      ) : (
+-        // INTERACTIVE WORKSPACE
+-        <main className="workspace">
+-          {/* COLUMN 1: STYLE SIDEBAR */}
+-          <aside className="editor-sidebar">
+-            <div className="sidebar-section">
+-              <h3><Sliders size={18} /> Style Presets</h3>
+-              <div className="preset-grid">
+-                {presets.map(p => {
+-                  const previewShadow = p.border_width > 0 ? `
+-                    -${p.border_width}px -${p.border_width}px 0 ${p.border_color},
+-                     ${p.border_width}px -${p.border_width}px 0 ${p.border_color},
+-                    -${p.border_width}px  ${p.border_width}px 0 ${p.border_color},
+-                     ${p.border_width}px  ${p.border_width}px 0 ${p.border_color}
+-                  ` : 'none';
+-                  return (
+-                    <button 
+-                      key={p.id} 
+-                      className={`preset-btn ${selectedPresetId === p.id ? 'active' : ''}`}
+-                      onClick={() => applyPreset(p)}
+-                    >
+-                      <div className="preset-info">
+-                        <span className="preset-name">{p.name}</span>
+-                        {p.id > 4 && (
+-                          <Trash2 size={12} className="trash-icon" onClick={(e) => deletePreset(p.id, e)} />
+-                        )}
+-                      </div>
+-                      <div className="preset-preview-wrap">
+-                        <span style={{
+-                          fontFamily: p.font_family,
+-                          color: p.font_color,
+-                          fontWeight: p.bold ? 'bold' : 'normal',
+-                          fontStyle: p.italic ? 'italic' : 'normal',
+-                          textShadow: previewShadow,
+-                          backgroundColor: p.bg_opacity > 0 ? `rgba(${hexToRgb(p.bg_color)}, ${p.bg_opacity})` : 'transparent',
+-                          padding: '2px 6px',
+-                          borderRadius: '3px',
+-                          fontSize: '13px',
+-                          lineHeight: 1,
+-                          display: 'inline-block'
+-                        }}>
+-                          Aa
+-                        </span>
+-                      </div>
+-                    </button>
+-                  );
+-                })}
+-              </div>
+-            </div>
+-
+-            <div className="sidebar-section border-top">
+-              <h3><Type size={18} /> Typography & Outline</h3>
+-              
+-              <div className="control-group">
+-                <label>Font Family</label>
+-                <select value={fontFamily} onChange={(e) => setFontFamily(e.target.value)}>
+-                  <option value="Arial">Arial</option>
++          <div className="feature-card">
++            <div className="card-icon">02</div>
++            <h3>Style Presets</h3>
++            <p>Create fast, responsive brand styles that deliver exceptional UX.</p>
++          </div>
++          <div className="feature-card">
++            <div className="card-icon">03</div>
++            <h3>Smart Rendering</h3>
++            <p>Develop content strategy that strengthens your brand messaging.</p>
++          </div>
++        </div>
++      </section>
++
++      {/* 4. THE CAPTIONING ENGINE (THE MAIN TOOL) */}
++      <section className="engine-section" id="engine">
++        <div className="engine-card">
++          <div className="engine-sidebar">
++             <h3>Style Engine</h3>
++             <div className="control-set">
++                <label>Typography</label>
++                <select value={fontFamily} onChange={(e)=>setFontFamily(e.target.value)}>
++                  <option value="Impact">Impact Bold</option>
+                   <option value="Arial Black">Arial Black</option>
+-                  <option value="Calibri">Calibri</option>
+-                  <option value="Cambria">Cambria</option>
+-                  <option value="Candara">Candara</option>
+-                  <option value="Comic Sans MS">Comic Sans MS</option>
+-                  <option value="Consolas">Consolas</option>
+-                  <option value="Constantia">Constantia</option>
+-                  <option value="Corbel">Corbel</option>
+-                  <option value="Courier New">Courier New</option>
+-                  <option value="Georgia">Georgia</option>
+-                  <option value="Impact">Impact</option>
+-                  <option value="Lucida Console">Lucida Console</option>
+-                  <option value="Lucida Sans Unicode">Lucida Sans Unicode</option>
+-                  <option value="Microsoft Sans Serif">Microsoft Sans Serif</option>
+-                  <option value="Palatino Linotype">Palatino Linotype</option>
+-                  <option value="Segoe UI">Segoe UI</option>
+-                  <option value="Tahoma">Tahoma</option>
+-                  <option value="Times New Roman">Times New Roman</option>
+-                  <option value="Trebuchet MS">Trebuchet MS</option>
+-                  <option value="Verdana">Verdana</option>
+-                  <option value="Bebas Neue">Bebas Neue</option>
+-                  <option value="Inter">Inter</option>
++                  <option value="Georgia">Serif Modern</option>
+                 </select>
+-              </div>
+-
+-              <div className="control-row-grid">
+-                <div className="control-group">
+-                  <label>Font Size ({fontSize}px)</label>
+-                  <input 
+-                    type="range" 
+-                    min="14" 
+-                    max="50" 
+-                    value={fontSize} 
+-                    onChange={(e) => setFontSize(parseInt(e.target.value))} 
+-                  />
+-                </div>
+-                <div className="control-group">
+-                  <label>Outline Width</label>
+-                  <input 
+-                    type="range" 
+-                    min="0" 
+-                    max="5" 
+-                    step="0.5" 
+-                    value={borderWidth} 
+-                    onChange={(e) => setBorderWidth(parseFloat(e.target.value))} 
+-                  />
+-                </div>
+-              </div>
+-
+-              <div className="color-row-grid">
+-                <div className="control-group">
+-                  <label>Font Color</label>
+-                  <div className="color-picker-wrapper">
+-                    <input type="color" value={fontColor} onChange={(e) => setFontColor(e.target.value)} />
+-                    <span className="hex-label">{fontColor}</span>
+-                  </div>
++             </div>
++             <div className="control-set">
++                <label>Caption Mode</label>
++                <div className="toggle-box">
++                  <button className={bgType==="1"?"active":""} onClick={()=>setBgType("1")}>Outline</button>
++                  <button className={bgType==="3"?"active":""} onClick={()=>setBgType("3")}>Box</button>
+                 </div>
+-                <div className="control-group">
+-                  <label>Outline Color</label>
+-                  <div className="color-picker-wrapper">
+-                    <input type="color" value={borderColor} onChange={(e) => setBorderColor(e.target.value)} />
+-                    <span className="hex-label">{borderColor}</span>
+-                  </div>
+-                </div>
+-              </div>
+-
+-              <div className="control-row-grid inline-options">
+-                <label className="checkbox-label">
+-                  <input type="checkbox" checked={bold} onChange={(e) => setBold(e.target.checked)} />
+-                  <span>Bold</span>
+-                </label>
+-                <label className="checkbox-label">
+-                  <input type="checkbox" checked={italic} onChange={(e) => setItalic(e.target.checked)} />
+-                  <span>Italic</span>
+-                </label>
+-              </div>
+-            </div>
++             </div>
++             <div className="control-set">
++                <label>Scale: {fontSize}px</label>
++                <input type="range" min="16" max="60" value={fontSize} onChange={(e)=>setFontSize(e.target.value)} />
++             </div>
++             <div className="color-row">
++                <div><label>Text</label><input type="color" value={fontColor} onChange={(e)=>setFontColor(e.target.value)} /></div>
++                <div><label>Accent</label><input type="color" value={borderColor} onChange={(e)=>setBorderColor(e.target.value)} /></div>
++             </div>
++          </div>
+ 
+-            <div className="sidebar-section border-top">
+-              <h3>≡ƒÄ¿ Background Backdrop</h3>
+-              <div className="color-row-grid">
+-                <div className="control-group">
+-                  <label>Backdrop Color</label>
+-                  <div className="color-picker-wrapper">
+-                    <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} />
+-                    <span className="hex-label">{bgColor}</span>
+-                  </div>
+-                </div>
+-                <div className="control-group">
+-                  <label>Backdrop Opacity ({Math.round(bgOpacity * 100)}%)</label>
+-                  <input 
+-                    type="range" 
+-                    min="0" 
+-                    max="1" 
+-                    step="0.1" 
+-                    value={bgOpacity} 
+-                    onChange={(e) => setBgOpacity(parseFloat(e.target.value))} 
+-                  />
++          <div className="engine-main">
++            {!loading && !videoUrl && (
++              <div className="upload-box">
++                <div className="upload-ui">
++                  <input type="file" id="v-file" onChange={(e)=>setFile(e.target.files[0])} hidden />
++                  <label htmlFor="v-file">
++                    {file ? file.name : "Click to select master file"}
++                  </label>
+                 </div>
++                {file && <button onClick={generateCaptions} className="btn-render">Start Rendering ΓÇö</button>}
+               </div>
+-            </div>
++            )}
+ 
+-            <div className="sidebar-section border-top">
+-              <h3>≡ƒÆ╛ Save Custom Style</h3>
+-              <div className="save-preset-row">
+-                <input 
+-                  type="text" 
+-                  placeholder="Style Name" 
+-                  value={newPresetName}
+-                  onChange={(e) => setNewPresetName(e.target.value)}
+-                />
+-                <button className="btn-secondary" onClick={saveCustomPreset}>Save</button>
++            {loading && (
++              <div className="rendering-ui">
++                <div className="pulse-loader"></div>
++                <h3>SYSTEM PROCESSING...</h3>
++                <div className="progress-track"><div className="progress-bar" style={{width:`${progress}%`}}></div></div>
+               </div>
+-            </div>
+-          </aside>
++            )}
+ 
+-          {/* COLUMN 2: PLAYBACK & RENDER */}
+-          <section className="playback-area">
+-            <div className="glass-card player-card">
+-              <div className="video-viewport">
+-                <video 
+-                  ref={videoRef}
+-                  src={videoData.videoUrl} 
+-                  controls 
+-                  onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
+-                />
+-                {/* LIVE DYNAMIC SUBTITLE OVERLAY */}
+-                {activeSegment && (
+-                  <div 
+-                    className="subtitle-overlay"
+-                    style={{
+-                      position: 'absolute',
+-                      bottom: '10%',
+-                      left: '50%',
+-                      transform: 'translateX(-50%)',
+-                      textAlign: 'center',
+-                      pointerEvents: 'none',
+-                      fontFamily: fontFamily,
+-                      fontSize: `${fontSize}px`,
+-                      color: fontColor,
+-                      fontWeight: bold ? 'bold' : 'normal',
+-                      fontStyle: italic ? 'italic' : 'normal',
+-                      textShadow: textOutlineShadow,
+-                      backgroundColor: bgOpacity > 0 ? `rgba(${hexToRgb(bgColor)}, ${bgOpacity})` : 'transparent',
+-                      padding: bgOpacity > 0 ? '6px 14px' : '0',
+-                      borderRadius: '6px',
+-                      maxWidth: '85%',
+-                      whiteSpace: 'pre-wrap',
+-                      zIndex: 10,
+-                      transition: 'all 0.1s ease-out'
+-                    }}
+-                  >
+-                    {showSpeakerLabels ? `[${activeSegment.speaker}]: ${activeSegment.text}` : activeSegment.text}
+-                  </div>
+-                )}
+-              </div>
+-              
+-              <div className="render-controls border-top">
+-                <div className="render-options">
+-                  <label className="checkbox-label">
+-                    <input 
+-                      type="checkbox" 
+-                      checked={showSpeakerLabels} 
+-                      onChange={(e) => setShowSpeakerLabels(e.target.checked)} 
+-                    />
+-                    <span>Show speaker tags in final render/export</span>
+-                  </label>
+-                </div>
++            {videoUrl && (
++              <div className="output-ui">
++                <video width="100%" controls key={videoUrl}><source src={videoUrl} type="video/mp4" /></video>
+                 <div className="btn-row">
+-                  <button className="btn-primary" onClick={handleBurnVideo} disabled={rendering}>
+-                    {rendering ? (
+-                      <>
+-                        <div className="mini-spinner"></div> Rendering Subtitles...
+-                      </>
+-                    ) : (
+-                      <>
+-                        <FileVideo size={16} /> Burn Styles & Render Video
+-                      </>
+-                    )}
+-                  </button>
+-
+-                  <div className="export-dropdown">
+-                    <button className="btn-outline">
+-                      <Download size={16} /> Export Subtitles
+-                    </button>
+-                    <div className="dropdown-menu">
+-                      <button onClick={() => handleExport('srt')}>Export as SRT</button>
+-                      <button onClick={() => handleExport('vtt')}>Export as VTT</button>
+-                      <button onClick={() => handleExport('json')}>Export as JSON</button>
+-                    </div>
+-                  </div>
+-                </div>
+-              </div>
+-            </div>
+-
+-            {/* rendered download block */}
+-            {renderedVideoUrl && (
+-              <div className="glass-card render-output-card animate-slideup">
+-                <h4>≡ƒÄë Your Rendered Video is Ready!</h4>
+-                <video src={renderedVideoUrl} controls width="100%" />
+-                <div className="btn-row mt-15">
+-                  <a href={renderedVideoUrl} download className="btn-success text-dec-none">
+-                    <Download size={16} /> Download Final MP4
+-                  </a>
++                  <button onClick={() => window.open(videoUrl)} className="btn-download">Download Master</button>
++                  <button onClick={() => {setVideoUrl(""); setFile(null);}} className="btn-reset">New Project</button>
+                 </div>
+               </div>
+             )}
+-          </section>
+-        </main>
+-      )}
++          </div>
++        </div>
++      </section>
++
++      {/* 5. FOOTER */}
++      <footer className="footer">
++        <div className="footer-content">
++          <div className="logo">NEX<span>GRO</span></div>
++          <p>┬⌐ 2026 Nexgro. All rights reserved.</p>
++        </div>
++      </footer>
+     </div>
+   );
+ }

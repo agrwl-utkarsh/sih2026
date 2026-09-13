@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Log Pre-processing Pipeline</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Universal Log Pre-processing Pipeline</h1>
+            <p>Two-Tier Discovery & Execution Architecture (SIH26)</p>
+        </header>
+
+        <main>
+            <!-- 1. Input Section -->
+            <div class="panel input-section">
+                <h2>Raw Log Input</h2>
+                <div class="sample-selector">
+                    <label for="sample-select">Load a sample format:</label>
+                    <select id="sample-select">
+                        <option value="">-- Select a sample log (or paste your own) --</option>
+                        <option value='{"timestamp": "2026-09-13T10:00:00Z", "level": "error", "message": "Database connection failed", "host": "db-server-01"}'>JSON (Structured)</option>
+                        <option value="Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8">Syslog-style (Semi-Structured)</option>
+                        <option value="2026-09-13T10:15:30Z,ERROR,Connection reset by peer,app-server-02,pid=992">CSV / Delimited</option>
+                        <option value="2026-09-13T10:20:00Z | CRITICAL | PaymentGateway | Transaction txn-8829 failed due to timeout after 3000ms">Custom (Pipe-Delimited)</option>
+                        <option value="Connection refused from 192.168.1.5 on port 22">Generic Unstructured</option>
+                        <option value="##[2026-09-13]<node-99>{temp:87.2C}(status=OK)">Made-up Unknown Format</option>
+                        <option value="2026-06-14 10:15:32 ERROR [MainThread] Connection timeout while accessing database: host=db01, user=admin">Regression (Section 5)</option>
+                    </select>
+                </div>
+                <textarea id="log-input" placeholder="Paste your raw logs here (multiple lines supported)..."></textarea>
+                <button id="process-btn">Run Pipeline</button>
+            </div>
+
+            <!-- Multi-card Output Container -->
+            <div id="results-container"></div>
+            
+            <!-- Cache Inspector -->
+            <div class="panel cache-inspector">
+                <h2>Cache Inspector 
+                    <button id="refresh-cache-btn" style="width: auto; padding: 0.3rem 0.8rem; margin: 0; font-size: 0.75rem; float: right;">Refresh</button>
+                </h2>
+                <pre id="cache-output">Cache is currently empty.</pre>
+            </div>
+        </main>
+    </div>
+
+    <!-- Template for a single result card -->
+    <template id="result-card-template">
+        <div class="panel result-card" style="margin-bottom: 2rem;">
+            <!-- Summary Row -->
+            <div class="summary-row" style="margin-bottom: 1.5rem;">
+                <div class="stat-card mode-card">
+                    <div class="stat-label">Processing Path</div>
+                    <div class="stat-value val-mode">--</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Detected Signature</div>
+                    <div class="stat-value val-format">--</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Latency</div>
+                    <div class="stat-value val-latency">--</div>
+                </div>
+            </div>
+
+            <!-- Inferred Fields Table -->
+            <h3 style="font-family: var(--font-code); color: var(--accent-cyan); font-size: 0.9rem;">Inferred Fields</h3>
+            <table class="fields-table" style="margin-bottom: 1.5rem;">
+                <thead>
+                    <tr>
+                        <th>Field Name</th>
+                        <th>Extracted Value</th>
+                    </tr>
+                </thead>
+                <tbody class="fields-body"></tbody>
+            </table>
+
+            <!-- Normalized Output -->
+            <h3 style="font-family: var(--font-code); color: var(--accent-cyan); font-size: 0.9rem;">Normalized Output (Common Schema)</h3>
+            <pre class="log-output"></pre>
+        </div>
+    </template>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

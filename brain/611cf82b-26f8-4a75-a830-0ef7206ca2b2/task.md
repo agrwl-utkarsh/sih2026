@@ -1,0 +1,6 @@
+- [x] Restore backend database initialization and tables
+- [x] Implement asynchronous background transcription thread in backend
+- [x] Implement asynchronous background burning thread in backend
+- [x] Fix backend video status endpoint to return output `renderedUrl`
+- [x] Restore full-featured frontend `App.js` with styles dashboard, editing, and progress polling
+- [x] Verify execution by compiling python backend and verifying syntax

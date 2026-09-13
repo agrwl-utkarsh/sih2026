@@ -1,0 +1,12 @@
+# Task Checklist: Test AI Captioner Theme and Render Flow
+- [x] Open http://localhost:3000 and ensure clean state.
+- [x] Capture initial upload page screenshot.
+- [x] Upload video file: `C:\Users\uagar\ai-captioner\backend\uploads\060920c9-6ed1-4d1e-9256-b57a1fd948cb.mp4`.
+- [x] Click 'Transcribe Video'.
+- [x] Wait for transcription to complete (30-90 seconds).
+- [x] Capture screenshot of workspace (transcription done).
+- [x] Click 'Burn Styles & Render Video'.
+- [x] Wait for render to complete.
+- [x] Verify output render card (player and download button).
+- [x] Capture screenshot of rendered stage.
+- [x] Verify no error alerts.

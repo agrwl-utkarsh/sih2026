@@ -1,0 +1,9 @@
+Successfully scheduled one-shot timer.
+Expected to fire at: 2026-07-11T22:33:13+05:30
+Prompt: Checking repowise installation status after 45s
+
+[2026-07-11T22:32:38+05:30] Still waiting. Remaining time: 35s
+[2026-07-11T22:32:48+05:30] Still waiting. Remaining time: 25s
+[2026-07-11T22:32:58+05:30] Still waiting. Remaining time: 15s
+[2026-07-11T22:33:08+05:30] Still waiting. Remaining time: 5s
+[2026-07-11T22:33:13+05:30] Timer fired.

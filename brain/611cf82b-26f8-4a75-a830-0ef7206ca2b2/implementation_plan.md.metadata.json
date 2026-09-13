@@ -1,0 +1,6 @@
+{
+  "summary": "Restore original database-backed asynchronous architecture for video transcription and subtitle burning, adding full editing controls, presets, and live preview in the frontend. Includes fixing the backend status endpoint to return `renderedUrl` when rendering is complete.",
+  "updatedAt": "2026-07-11T17:10:46.158581900Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

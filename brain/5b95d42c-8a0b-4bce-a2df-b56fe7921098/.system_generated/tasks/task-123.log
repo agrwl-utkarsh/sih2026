@@ -1,0 +1,17 @@
+config file not found: 
+INFO:     Started server process [17340]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52600 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52600 - "GET /static/styles.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51445 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51445 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56126 - "POST /api/logs/ingest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56132 - "POST /api/logs/ingest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56139 - "POST /api/logs/ingest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56157 - "POST /api/logs/ingest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56158 - "GET /api/logs/templates HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60231 - "POST /api/logs/ingest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50984 - "POST /api/logs/ingest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50984 - "POST /api/logs/ingest HTTP/1.1" 200 OK

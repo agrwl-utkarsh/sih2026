@@ -1,0 +1,6 @@
+Successfully scheduled one-shot timer.
+Expected to fire at: 2026-07-11T22:38:53+05:30
+Prompt: Checking repowise installation status after 90s
+
+[2026-07-11T22:37:53+05:30] Still waiting. Remaining time: 1m0s
+[2026-07-11T22:38:00+05:30] Timer cancelled: agent received a message during wait.

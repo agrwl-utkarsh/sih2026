@@ -1,0 +1,67 @@
+repowise index-only — C:\Users\uagar\ai-captioner
+Skipping LLM page generation (--index-only)
+  Phase 1: Ingestion
+    (graph build can take several minutes on first run — safe to Ctrl-C, then 
+run 'repowise init --resume' to continue)
+    ↳ betweenness centrality ✓ (0.0s)
+    ↳ symbol betweenness ✓ (0.0s)
+    ↳ symbol PageRank ✓ (6.0s)
+    ↳ PageRank ✓ (6.0s)
+    ↳ community detection ✓ (0.0s)
+    ↳ symbol communities ✓ (0.0s)
+  Scanned 32 files, 12 included
+    Excluded: 3 by .gitignore, 1 oversized, 5 binary, 11 unknown type
+  → External systems: 18 declared deps across manifests
+  → 12 files parsed · 15 symbols extracted
+  → Graph: 44 nodes · 44 edges
+  → Git: 7 files indexed · 1 hotspots
+  Phase 2: Analysis
+  → 2 unreachable files · 0 unused exports · ~0 deletable lines
+  → 12 health findings · avg 7.73/10 · worst 4.4/10
+  → 0 decisions: 0 inline · 0 ADR · 0 changelog · 0 PR · 0 git · 0 comments · 0
+docs
+    ↳ KG skeleton: 12 nodes, 9 edges, 8 layers
+
+
+┌───────────────────────────── Analysis Complete ─────────────────────────────┐
+│                                                                             │
+│   12 files · 15 symbols                                                     │
+│   javascript 42%, json 17%, python 17%, dockerfile 8% +2 more               │
+│                                                                             │
+│   Graph    44 nodes · 44 edges                                              │
+│   Git      7 files indexed · 1 hotspots                                     │
+│   Dead     2 unreachable · 0 unused exports                                 │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+───────────────────────── Phase 3 of 3 · Persistence ──────────────────────────
+  Saving to database
+
+  ✓ Database updated
+  ✓ .claude/CLAUDE.md updated
+  ✓ Claude Code MCP registered (C:\Users\uagar\.claude\settings.json)
+  ✓ Claude Code hooks registered (PostToolUse)
+  ✓ Claude Code tool-search enabled (defers MCP tool schemas)
+
+┌────────────────────── {^ ^}  repowise index complete ───────────────────────┐
+│                                                                             │
+│   Files indexed           12                                                │
+│   Symbols                 15                                                │
+│   Languages               javascript 42%, json 17%, python 17%,             │
+│                           dockerfile 8% +2 more                             │
+│   Elapsed                 45.7s                                             │
+│                                                                             │
+│   Graph                   44 nodes · 44 edges                               │
+│   Dead code               2 unreachable · 0 unused exports                  │
+│   Decisions               0                                                 │
+│   Git history             7 files · 1 hotspots                              │
+│                                                                             │
+│   What's next:                                                              │
+│   repowise serve               launch the dashboard at                      │
+│ http://localhost:3000                                                       │
+│   repowise init --provider gemini generate full documentation               │
+│   repowise dead-code           explore 2 dead code findings                 │
+│   repowise risk app.py         assess risk for top hotspot                  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+

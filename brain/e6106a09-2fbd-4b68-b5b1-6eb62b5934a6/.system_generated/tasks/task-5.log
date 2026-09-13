@@ -1,0 +1,17 @@
+Program 'g++.exe' failed to run: An Application Control policy has blocked this fileAt line:1 char:1
++ g++ --version; cl
++ ~~~~~~~~~~~~~.
+At line:1 char:1
++ g++ --version; cl
++ ~~~~~~~~~~~~~
+    + CategoryInfo          : ResourceUnavailable: (:) [], ApplicationFailedException
+    + FullyQualifiedErrorId : NativeCommandFailed
+ 
+cl : The term 'cl' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the 
+spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:16
++ g++ --version; cl
++                ~~
+    + CategoryInfo          : ObjectNotFound: (cl:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 

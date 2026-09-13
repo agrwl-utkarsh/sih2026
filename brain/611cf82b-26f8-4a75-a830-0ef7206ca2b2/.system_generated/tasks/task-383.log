@@ -1,0 +1,298 @@
+--- AI ENGINE: CPU (Hindi/English Support) ---
+ * Serving Flask app 'app'
+ * Debug mode: on
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with watchdog (windowsapi)
+ * Debugger is active!
+ * Debugger PIN: 144-094-058
+127.0.0.1 - - [11/Jul/2026 23:03:17] "GET /api/presets HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:18] "GET /api/presets HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:23] "POST /api/upload HTTP/1.1" 200 -
+C:\Users\uagar\ai-captioner\backend\venv\Lib\site-packages\whisper\transcribe.py:132: UserWarning: FP16 is not supported on CPU; using FP32 instead
+  warnings.warn("FP16 is not supported on CPU; using FP32 instead")
+127.0.0.1 - - [11/Jul/2026 23:03:25] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:26] "GET /uploads/98385e59-af99-420c-a5dd-216ef0ce8af3.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:03:27] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:29] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:31] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:33] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:35] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:37] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:39] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:41] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:43] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:45] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:47] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:49] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:51] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:53] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:55] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:57] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:03:59] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:01] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:03] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:05] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:07] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:09] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:11] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:13] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:15] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:17] "GET /uploads/98385e59-af99-420c-a5dd-216ef0ce8af3.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:04:17] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:17] "GET /uploads/98385e59-af99-420c-a5dd-216ef0ce8af3.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:04:19] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:20] "OPTIONS /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3/burn HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:20] "POST /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3/burn HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:21] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:26] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:27] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:28] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:31] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:32] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:35] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:36] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:39] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:40] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:43] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:44] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:04:46] "GET /api/videos/98385e59-af99-420c-a5dd-216ef0ce8af3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:07:47] "GET /api/presets HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:07:47] "GET /api/presets HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:07:57] "GET /uploads/060920c9-6ed1-4d1e-9256-b57a1fd948cb.mp4 HTTP/1.1" 304 -
+127.0.0.1 - - [11/Jul/2026 23:07:59] "GET /uploads/060920c9-6ed1-4d1e-9256-b57a1fd948cb.mp4 HTTP/1.1" 304 -
+127.0.0.1 - - [11/Jul/2026 23:08:10] "POST /api/upload HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:12] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:14] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:16] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:18] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:20] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:22] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:24] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:26] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:28] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:30] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:32] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:34] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:36] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:38] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:40] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:42] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:44] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:46] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:48] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:50] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:52] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:54] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:56] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:08:58] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:00] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:02] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:04] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:06] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:08] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:10] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:12] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:14] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:16] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:18] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:20] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:22] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:24] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:26] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:28] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:30] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:32] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:32] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24/segments HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:33] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:33] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:33] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:33] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:33] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:33] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:33] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:34] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:34] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:34] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:34] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:34] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:34] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:35] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:35] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:35] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:35] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:35] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:35] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:36] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:36] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:36] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:36] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:36] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:36] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:36] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:37] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:37] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:37] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:37] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:37] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:37] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:38] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:38] "GET /uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:09:51] "OPTIONS /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24/burn HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:51] "POST /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24/burn HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:53] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:56] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:09:57] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:10:00] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:10:01] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:10:04] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:10:05] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:10:08] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:10:09] "GET /api/videos/4f1de054-047b-4e9c-a847-b2e09ea5cc24 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:10:09] "GET /outputs/captioned_4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:10:10] "GET /outputs/captioned_4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:10:10] "GET /outputs/captioned_4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:10:10] "GET /outputs/captioned_4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:10:10] "GET /outputs/captioned_4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:10:10] "GET /outputs/captioned_4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:10:10] "GET /outputs/captioned_4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:11:05] "GET /api/presets HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:05] "GET /api/presets HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:10] "POST /api/upload HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:13] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:15] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:17] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:18] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:21] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:22] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:25] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:26] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:29] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:30] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:33] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:34] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:37] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:38] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:41] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:42] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:45] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:46] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:49] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:50] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:53] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:54] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:57] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:11:58] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:01] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:02] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:05] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:06] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:09] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:10] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:13] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:14] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:17] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:18] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:21] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:22] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:25] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:26] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:29] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:30] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:33] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:34] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:37] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:38] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:41] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:42] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:45] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:46] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:49] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:50] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:53] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:54] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:57] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:12:58] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:13:01] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:13:02] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:13:05] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:13:06] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:13:09] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:13:10] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:13:11] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3/segments HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:13:11] "GET /uploads/3d8fcded-4125-4140-a44c-ef3699bb9cd3.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:32:26] "OPTIONS /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3/burn HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:26] "POST /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3/burn HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:28] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:31] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:32] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:34] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:36] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:39] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:40] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:42] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:44] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:47] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:48] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:51] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:52] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:55] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:32:56] "GET /api/videos/3d8fcded-4125-4140-a44c-ef3699bb9cd3 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:33:19] "GET /outputs/captioned_3d8fcded-4125-4140-a44c-ef3699bb9cd3.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:33:19] "GET /outputs/captioned_3d8fcded-4125-4140-a44c-ef3699bb9cd3.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:33:19] "GET /outputs/captioned_3d8fcded-4125-4140-a44c-ef3699bb9cd3.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:33:19] "GET /outputs/captioned_3d8fcded-4125-4140-a44c-ef3699bb9cd3.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:33:21] "GET /outputs/captioned_3d8fcded-4125-4140-a44c-ef3699bb9cd3.mp4 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:33:22] "GET /outputs/captioned_3d8fcded-4125-4140-a44c-ef3699bb9cd3.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:33:22] "GET /outputs/captioned_3d8fcded-4125-4140-a44c-ef3699bb9cd3.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:33:22] "GET /outputs/captioned_3d8fcded-4125-4140-a44c-ef3699bb9cd3.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:33:22] "GET /outputs/captioned_3d8fcded-4125-4140-a44c-ef3699bb9cd3.mp4 HTTP/1.1" 206 -
+127.0.0.1 - - [11/Jul/2026 23:33:29] "GET /api/presets HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:33:29] "GET /api/presets HTTP/1.1" 200 -
+ * Detected change in 'C:\\Users\\uagar\\ai-captioner\\backend\\app.py', reloading
+--- AI ENGINE: CPU (Hindi/English Support) ---
+Executing FFmpeg for 98385e59-af99-420c-a5dd-216ef0ce8af3: ffmpeg -y -i C:\Users\uagar\ai-captioner\backend\uploads\98385e59-af99-420c-a5dd-216ef0ce8af3.mp4 -vf subtitles='uploads/98385e59-af99-420c-a5dd-216ef0ce8af3_temp.srt':force_style='Fontname=Inter,FontSize=24,PrimaryColour=&H0000ffff,OutlineColour=&H00000000,BackColour=&HFF000000,BorderStyle=1,Outline=1.5,Shadow=1,Alignment=2,Bold=1,Italic=0' -c:v libx264 -preset superfast -c:a copy C:\Users\uagar\ai-captioner\backend\outputs\captioned_98385e59-af99-420c-a5dd-216ef0ce8af3.mp4
+Burn error for 98385e59-af99-420c-a5dd-216ef0ce8af3: ffmpeg version 8.1.2-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers
+  built with gcc 16.1.0 (Rev2, Built by MSYS2 project)
+  configuration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-cairo --enable-fontconfig --enable-iconv --enable-gnutls --enable-lcms2 --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-libsnappy --enable-zlib --enable-librist --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-libbluray --enable-libcaca --enable-libdvdnav --enable-libdvdread --enable-sdl2 --enable-libaribb24 --enable-libaribcaption --enable-libdav1d --enable-libdavs2 --enable-libopenjpeg --enable-libquirc --enable-libuavs3d --enable-libxevd --enable-libzvbi --enable-liboapv --enable-libqrencode --enable-librav1e --enable-libsvtav1 --enable-libvvenc --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxavs2 --enable-libxeve --enable-libxvid --enable-libaom --enable-libjxl --enable-libsvtjpegxs --enable-libvpx --enable-mediafoundation --enable-libass --enable-frei0r --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-liblensfun --enable-libvidstab --enable-libvmaf --enable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-ffnvcodec --enable-libvpl --enable-nvdec --enable-nvenc --enable-vaapi --enable-libshaderc --enable-vulkan --enable-libplacebo --enable-opencl --enable-libcdio --enable-openal --enable-libgme --enable-libmodplug --enable-libopenmpt --enable-libopencore-amrwb --enable-libmp3lame --enable-libshine --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libcodec2 --enable-libilbc --enable-libgsm --enable-liblc3 --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enable-libvorbis --enable-ladspa --enable-libbs2b --enable-libflite --enable-libmysofa --enable-librubberband --enable-libsoxr --enable-chromaprint --enable-whisper
+  libavutil      60. 26.102 / 60. 26.102
+  libavcodec     62. 28.102 / 62. 28.102
+  libavformat    62. 12.102 / 62. 12.102
+  libavdevice    62.  3.102 / 62.  3.102
+  libavfilter    11. 14.102 / 11. 14.102
+  libswscale      9.  5.102 /  9.  5.102
+  libswresample   6.  3.102 /  6.  3.102
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'C:\Users\uagar\ai-captioner\backend\uploads\98385e59-af99-420c-a5dd-216ef0ce8af3.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf61.1.100
+  Duration: 00:02:00.08, start: 0.000000, bitrate: 1995 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(tv, bt709, progressive), 1280x546 [SAR 1:1 DAR 640:273], 1858 kb/s, 23.98 fps, 23.98 tbr, 24k tbn (default)
+    Metadata:
+      handler_name    : ISO Media file produced by Google Inc.
+      encoder         : Lavc61.3.100 libx264
+  Stream #0:1[0x2](eng): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 130 kb/s (default)
+    Metadata:
+      handler_name    : ISO Media file produced by Google Inc.
+[Parsed_subtitles_0 @ 000002be6bd83200] libass API version: 0x1705000
+[Parsed_subtitles_0 @ 000002be6bd83200] libass source: commit: 0.17.5-0-g4a05d8127f525943ebf45fdc6497c9e665947f0d
+[Parsed_subtitles_0 @ 000002be6bd83200] Shaper: FriBidi 1.0.16 (SIMPLE) HarfBuzz-ng 14.2.1 (COMPLEX)
+[Parsed_subtitles_0 @ 000002be6bd83200] Unable to open uploads/98385e59-af99-420c-a5dd-216ef0ce8af3_temp.srt
+[AVFilterGraph @ 000002be69e7cf80] Error initializing filters
+Error opening output file C:\Users\uagar\ai-captioner\backend\outputs\captioned_98385e59-af99-420c-a5dd-216ef0ce8af3.mp4.
+Error opening output files: Invalid data found when processing input
+
+Executing FFmpeg for 4f1de054-047b-4e9c-a847-b2e09ea5cc24: ffmpeg -y -i C:\Users\uagar\ai-captioner\backend\uploads\4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4 -vf subtitles='uploads/4f1de054-047b-4e9c-a847-b2e09ea5cc24_temp.srt':force_style='Fontname=Inter,FontSize=24,PrimaryColour=&H0000ffff,OutlineColour=&H00000000,BackColour=&HFF000000,BorderStyle=1,Outline=1.5,Shadow=1,Alignment=2,Bold=1,Italic=0' -c:v libx264 -preset superfast -c:a copy C:\Users\uagar\ai-captioner\backend\outputs\captioned_4f1de054-047b-4e9c-a847-b2e09ea5cc24.mp4
+Executing FFmpeg for 3d8fcded-4125-4140-a44c-ef3699bb9cd3: ffmpeg -y -i C:\Users\uagar\ai-captioner\backend\uploads\3d8fcded-4125-4140-a44c-ef3699bb9cd3.mp4 -vf subtitles='uploads/3d8fcded-4125-4140-a44c-ef3699bb9cd3_temp.srt':force_style='Fontname=Inter,FontSize=24,PrimaryColour=&H0000ffff,OutlineColour=&H00000000,BackColour=&HFF000000,BorderStyle=1,Outline=1.5,Shadow=1,Alignment=2,Bold=1,Italic=0' -c:v libx264 -preset superfast -c:a copy C:\Users\uagar\ai-captioner\backend\outputs\captioned_3d8fcded-4125-4140-a44c-ef3699bb9cd3.mp4
+ * Restarting with watchdog (windowsapi)
+ * Debugger is active!
+ * Debugger PIN: 144-094-058
+127.0.0.1 - - [11/Jul/2026 23:35:56] "GET /api/presets HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:35:56] "GET /api/presets HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:36:20] "GET /api/videos/060920c9-6ed1-4d1e-9256-b57a1fd948cb HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:36:24] "GET /api/videos/060920c9-6ed1-4d1e-9256-b57a1fd948cb/segments HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:36:56] "GET /api/presets HTTP/1.1" 200 -
+127.0.0.1 - - [11/Jul/2026 23:36:56] "GET /api/presets HTTP/1.1" 200 -

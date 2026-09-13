@@ -1,0 +1,15 @@
+- `[x]` 1. Project Setup
+  - `[x]` Create directory `scratch/log_framework_demo`
+  - `[x]` Install dependencies (`fastapi`, `uvicorn`, `pandas`, `drain3`)
+- `[x]` 2. Core Processing Pipeline
+  - `[x]` Implement `format_detector.py`
+  - `[x]` Implement `parser.py` (Drain3 integration)
+  - `[x]` Implement `normalizer.py`
+- `[x]` 3. API Layer
+  - `[x]` Implement `main.py` with FastAPI endpoints
+- `[x]` 4. Demo Driver
+  - `[x]` Create `run_demo.py` with sample logs
+- `[x]` 5. Verification
+  - `[x]` Run demo and verify output
+- `[x]` 6. Documentation
+  - `[x]` Create `walkthrough.md`

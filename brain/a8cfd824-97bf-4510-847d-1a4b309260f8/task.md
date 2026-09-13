@@ -1,0 +1,7 @@
+- `[/]` Task list creation
+- `[ ]` Backend: Build `pipeline/llm_engine.py` (Tier 2c: Gemini integration & stub)
+- `[ ]` Backend: Refactor `pipeline/parser.py` (Expand fast-path detectors & score calculation)
+- `[ ]` Backend: Refactor `main.py` (Pipeline loop with completeness gate)
+- `[ ]` Frontend: Update `static/index.html` & `app.js` (Test cases, completeness UI)
+- `[ ]` Verification: Test all 5 regression tests
+- `[ ]` Walkthrough artifact
