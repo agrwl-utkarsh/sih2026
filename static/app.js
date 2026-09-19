@@ -85,6 +85,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     modeCard.classList.add('mode-discovery');
                     const by = result.inferred_by === 'llm' ? 'LLM' : 'Heuristic';
                     valMode.textContent = `Discovery (${by})`;
+                    if (result.llm_error) {
+                        const note = clone.querySelector('.llm-error-note');
+                        note.textContent = `LLM fallback: ${result.llm_error}`;
+                        note.title = result.llm_error;
+                        note.style.display = 'block';
+                    }
                 } else if (result.mode === 'Error') {
                     modeCard.classList.add('mode-error');
                     valMode.textContent = 'Error';

@@ -29,22 +29,32 @@ class DiscoveryEngine:
             delay = 0.0
         if delay > 0:
             time.sleep(delay)
-            
+
+        errors = []
         gemini_key = os.environ.get("GEMINI_API_KEY")
         if gemini_key:
-            llm_rule = self._call_gemini(log_entry, features, gemini_key)
+            llm_rule, err = self._call_gemini(log_entry, features, gemini_key)
             if llm_rule:
                 return llm_rule
-                
+            if err:
+                errors.append(err)
+
         anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
         if anthropic_key:
-            llm_rule = self._call_anthropic(log_entry, features, anthropic_key)
+            llm_rule, err = self._call_anthropic(log_entry, features, anthropic_key)
             if llm_rule:
                 return llm_rule
-                
-        return self._heuristic_fallback(features, log_entry)
+            if err:
+                errors.append(err)
 
-    def _call_gemini(self, log_entry: str, features: dict, api_key: str) -> dict | None:
+        rule = self._heuristic_fallback(features, log_entry)
+        if errors:
+            rule["llm_error"] = "; ".join(errors)[:300]
+        elif not gemini_key and not anthropic_key:
+            rule["llm_error"] = "No LLM API key configured (set GEMINI_API_KEY or ANTHROPIC_API_KEY)"
+        return rule
+
+    def _call_gemini(self, log_entry: str, features: dict, api_key: str) -> tuple[dict | None, str | None]:
         model = os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)
         truncated = log_entry[:500]
         
@@ -81,23 +91,26 @@ class DiscoveryEngine:
         try:
             resp = requests.post(url, headers=headers, json=payload, timeout=8.0)
         except Exception as e:
+            err = f"Gemini request failed: {type(e).__name__}: {str(e)[:120]}"
             logger.error("Gemini API request failed: %s: %s", type(e).__name__, e)
-            return None
+            return None, err
 
         if resp.status_code != 200:
+            err = f"Gemini HTTP {resp.status_code}: {resp.text[:200]}"
             logger.error("Gemini API returned HTTP %d: %s", resp.status_code, resp.text)
-            return None
+            return None, err
 
         try:
             data = resp.json()
             text = data["candidates"][0]["content"]["parts"][0]["text"]
         except Exception as e:
+            err = f"Gemini response unparseable: {type(e).__name__}"
             logger.error("Failed to parse Gemini response: %s: %s", type(e).__name__, e)
-            return None
-            
-        return self._validate_and_build_rule(text, log_entry, features)
+            return None, err
 
-    def _call_anthropic(self, log_entry: str, features: dict, api_key: str) -> dict | None:
+        return self._validate_and_build_rule(text, log_entry, features, provider="Gemini")
+
+    def _call_anthropic(self, log_entry: str, features: dict, api_key: str) -> tuple[dict | None, str | None]:
         model = os.environ.get("DISCOVERY_MODEL", "claude-haiku-4-5-20251001")
         truncated = log_entry[:500]
         
@@ -127,53 +140,56 @@ class DiscoveryEngine:
         try:
             resp = requests.post(url, headers=headers, json=payload, timeout=8.0)
         except Exception as e:
+            err = f"Anthropic request failed: {type(e).__name__}: {str(e)[:120]}"
             logger.error("Anthropic API request failed: %s: %s", type(e).__name__, e)
-            return None
+            return None, err
 
         if resp.status_code != 200:
+            err = f"Anthropic HTTP {resp.status_code}: {resp.text[:200]}"
             logger.error("Anthropic API returned HTTP %d: %s", resp.status_code, resp.text)
-            return None
+            return None, err
 
         try:
             data = resp.json()
             text = data["content"][0]["text"]
         except Exception as e:
+            err = f"Anthropic response unparseable: {type(e).__name__}"
             logger.error("Failed to parse Anthropic response: %s: %s", type(e).__name__, e)
-            return None
-            
-        return self._validate_and_build_rule(text, log_entry, features)
+            return None, err
 
-    def _validate_and_build_rule(self, text: str, log_entry: str, features: dict) -> dict | None:
+        return self._validate_and_build_rule(text, log_entry, features, provider="Anthropic")
+
+    def _validate_and_build_rule(self, text: str, log_entry: str, features: dict, provider: str = "LLM") -> tuple[dict | None, str | None]:
         text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text.strip(), flags=re.MULTILINE).strip()
         try:
             parsed = json.loads(text)
         except Exception as e:
             logger.error("Failed to parse LLM output as JSON: %s: %s", type(e).__name__, e)
-            return None
+            return None, f"{provider} returned invalid JSON"
 
         if not isinstance(parsed, dict):
             logger.warning("LLM validation rejected: output is not a JSON object (%r)", parsed)
-            return None
+            return None, f"{provider} output was not a JSON object"
 
         method = parsed.get("method")
         delim = parsed.get("delimiter")
-        
+
         if method not in ("json", "delimiter", "compositional"):
             logger.warning("LLM validation rejected: invalid method %r (expected 'json', 'delimiter', or 'compositional')", method)
-            return None
-            
+            return None, f"{provider} proposed invalid method {method!r}"
+
         if method == "json" and not features.get("is_json"):
             logger.warning("LLM validation rejected: method is 'json' but feature is_json is False")
-            return None
-            
+            return None, f"{provider} said 'json' but entry is not valid JSON"
+
         if method == "delimiter":
             if delim not in (',', '|', ';', '\t'):
                 logger.warning("LLM validation rejected: invalid delimiter %r (expected ',', '|', ';', or '\\t')", delim)
-                return None
+                return None, f"{provider} proposed invalid delimiter {delim!r}"
             if delim not in log_entry:
                 logger.warning("LLM validation rejected: delimiter %r not found in log entry", delim)
-                return None
-                
+                return None, f"{provider} delimiter {delim!r} not found in entry"
+
         rule = {"method": method, "inferred_by": "llm"}
         if method == "delimiter":
             rule["delimiter"] = delim
@@ -183,8 +199,8 @@ class DiscoveryEngine:
         else:
             heuristic_rule = self._heuristic_fallback(features, log_entry)
             rule["signature"] = heuristic_rule.get("signature", "Compositional Zone Extraction")
-            
-        return rule
+
+        return rule, None
 
     def _heuristic_fallback(self, features: dict, log_entry: str = "") -> dict:
         rule = {"inferred_by": "heuristic"}

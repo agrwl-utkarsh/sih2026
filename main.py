@@ -128,6 +128,7 @@ def process_record(log: str) -> dict:
             "mode": mode,
             "format": rule.get("signature", "Unknown Signature"),
             "inferred_by": rule.get("inferred_by"),
+            "llm_error": rule.get("llm_error") if mode == "Discovery" else None,
             "latency_ms": latency_ms,
             "extracted_fields": parsed.get("parsed_fields", {}),
             "normalized": normalized
