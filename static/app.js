@@ -6,6 +6,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const cacheOutput = document.getElementById('cache-output');
     const refreshCacheBtn = document.getElementById('refresh-cache-btn');
     const template = document.getElementById('result-card-template');
+    const llmPill = document.getElementById('llm-status-pill');
+
+    const updateLlmStatus = async () => {
+        if (!llmPill) return;
+        try {
+            const res = await fetch('/api/health');
+            if (res.ok) {
+                const data = await res.json();
+                if (data.llm_configured) {
+                    llmPill.className = 'llm-pill active';
+                    const prov = data.provider ? data.provider.toUpperCase() : 'LLM';
+                    llmPill.textContent = `● ${prov} Active (${data.model})`;
+                } else {
+                    llmPill.className = 'llm-pill fallback';
+                    llmPill.textContent = '○ Heuristic Fallback (No API Key)';
+                }
+            } else {
+                llmPill.textContent = '○ API Error';
+            }
+        } catch (_) {
+            llmPill.textContent = '○ Pipeline Offline';
+        }
+    };
+    updateLlmStatus();
 
     sampleSelect.addEventListener('change', (e) => {
         if (e.target.value) {

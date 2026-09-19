@@ -442,3 +442,86 @@ def test_32_llm_error_when_no_key_configured():
     assert data["mode"] == "Discovery"
     assert data["inferred_by"] == "heuristic"
     assert data["llm_error"] == "No LLM API key configured (set GEMINI_API_KEY or ANTHROPIC_API_KEY)"
+
+
+@patch("pipeline.format_detector.requests.post")
+@patch.dict("os.environ", {"GEMINI_API_KEY": "fake_gemini_key"})
+def test_33_gemini_thinking_parts_handled(mock_post):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    # Simulate Gemini 2.5 response with thought part followed by answer part
+    mock_resp.json.return_value = {
+        "candidates": [{
+            "content": {
+                "parts": [
+                    {"thought": True, "text": "Thinking Process: The user provided pipe-delimited data..."},
+                    {"text": '{"method": "delimiter", "delimiter": "|"}'}
+                ]
+            }
+        }]
+    }
+    mock_post.return_value = mock_resp
+
+    unique_log = "part1 | part2 | part3 | part4"
+    res = client.post("/api/logs/ingest", json={"logs": [unique_log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["inferred_by"] == "llm"
+    assert data["format"] == "Pipe-Delimited"
+
+    # Verify thinkingBudget=0 was passed in payload to disable thinking overhead
+    call_args = mock_post.call_args
+    sent_payload = call_args.kwargs.get("json", {})
+    assert "generationConfig" in sent_payload
+    assert sent_payload["generationConfig"]["thinkingConfig"]["thinkingBudget"] == 0
+
+
+@patch("pipeline.format_detector.requests.post")
+@patch.dict("os.environ", {"ANTHROPIC_API_KEY": "fake_anthropic_key"}, clear=True)
+def test_34_anthropic_model_and_execution(mock_post):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "content": [{"type": "text", "text": '{"method": "json"}'}]
+    }
+    mock_post.return_value = mock_resp
+
+    unique_log = '{"service": "test", "status": "ok"}'
+    res = client.post("/api/logs/ingest", json={"logs": [unique_log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["inferred_by"] == "llm"
+    assert data["format"] == "JSON Object"
+
+    call_args = mock_post.call_args
+    assert "api.anthropic.com" in call_args.args[0]
+    sent_payload = call_args.kwargs.get("json", {})
+    assert "claude-3-5-haiku" in sent_payload.get("model", "")
+
+
+def test_35_health_and_diagnostics_endpoints():
+    res = client.get("/api/health")
+    assert res.status_code == 200
+    data = res.json()
+    assert "status" in data
+    assert "llm_configured" in data
+    assert "model" in data
+
+    res_llm = client.get("/api/health/llm")
+    assert res_llm.status_code == 200
+    data_llm = res_llm.json()
+    assert "status" in data_llm
+    assert "configured" in data_llm
+
+
+def test_36_robust_json_parsing_with_surrounding_text():
+    from pipeline.format_detector import DiscoveryEngine
+    engine = DiscoveryEngine()
+
+    raw_output = 'Here is the detected format:\n```json\n{"method": "delimiter", "delimiter": ";"}\n```\nHope this helps!'
+    rule, err = engine._validate_and_build_rule(raw_output, "val1;val2;val3", {"is_json": False})
+    assert err is None
+    assert rule["method"] == "delimiter"
+    assert rule["delimiter"] == ";"
+    assert rule["signature"] == "Semicolon-Delimited"
+

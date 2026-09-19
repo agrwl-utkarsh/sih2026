@@ -47,14 +47,22 @@ def main():
     )
     
     print("Waiting for server to start...")
+    llm_info = "Unknown"
     for _ in range(60):
         try:
-            res = requests.get(f"{API_URL}/api/logs/cache")
+            res = requests.get(f"{API_URL}/api/health")
             if res.status_code == 200:
+                h = res.json()
+                if h.get("llm_configured"):
+                    llm_info = f"Configured ({h.get('provider')} / {h.get('model')})"
+                else:
+                    llm_info = "Heuristic Fallback (No API key set)"
                 break
         except requests.exceptions.ConnectionError:
             pass
         time.sleep(0.5)
+
+    print(f"Server ready. LLM Pipeline Mode: {llm_info}")
 
     try:
         print("\n--- Sending Logs to Pipeline ---")
