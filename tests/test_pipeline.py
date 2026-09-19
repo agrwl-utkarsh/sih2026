@@ -449,7 +449,7 @@ def test_32_llm_error_when_no_key_configured():
 def test_33_gemini_thinking_parts_handled(mock_post):
     mock_resp = MagicMock()
     mock_resp.status_code = 200
-    # Simulate Gemini 2.5 response with thought part followed by answer part
+    # Simulate Gemini 3.x response with thought part followed by answer part
     mock_resp.json.return_value = {
         "candidates": [{
             "content": {
@@ -469,11 +469,13 @@ def test_33_gemini_thinking_parts_handled(mock_post):
     assert data["inferred_by"] == "llm"
     assert data["format"] == "Pipe-Delimited"
 
-    # Verify thinkingBudget=0 was passed in payload to disable thinking overhead
+    # Verify the default Gemini 3.x model and thinkingLevel='low' in the payload
+    # (thinkingBudget is deprecated for Gemini 3.x)
     call_args = mock_post.call_args
+    assert "gemini-3.6-flash" in call_args.args[0]
     sent_payload = call_args.kwargs.get("json", {})
     assert "generationConfig" in sent_payload
-    assert sent_payload["generationConfig"]["thinkingConfig"]["thinkingBudget"] == 0
+    assert sent_payload["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "low"}
 
 
 @patch("pipeline.format_detector.requests.post")
@@ -524,4 +526,54 @@ def test_36_robust_json_parsing_with_surrounding_text():
     assert rule["method"] == "delimiter"
     assert rule["delimiter"] == ";"
     assert rule["signature"] == "Semicolon-Delimited"
+
+
+def test_37_gemini_model_resolution():
+    from pipeline.format_detector import DEFAULT_MODEL, _resolve_gemini_model
+
+    # Default model is the current Gemini 3.x flash release
+    assert DEFAULT_MODEL == "gemini-3.6-flash"
+    assert _resolve_gemini_model("") == "gemini-3.6-flash"
+    assert _resolve_gemini_model("gemini-3") == "gemini-3.6-flash"
+
+    # Gemini 3.x models are accepted as-is
+    assert _resolve_gemini_model("gemini-3.6-flash") == "gemini-3.6-flash"
+    assert _resolve_gemini_model("gemini-3.5-flash") == "gemini-3.5-flash"
+    assert _resolve_gemini_model("gemini-3.5-flash-lite") == "gemini-3.5-flash-lite"
+
+    # Deprecated Gemini 2.5 models auto-migrate to the new default
+    assert _resolve_gemini_model("gemini-2.5-flash") == "gemini-3.6-flash"
+    assert _resolve_gemini_model("gemini-2.5-pro") == "gemini-3.6-flash"
+    assert _resolve_gemini_model("gemini-2.5-flash-lite") == "gemini-3.6-flash"
+
+    # Non-Gemini identifiers pass through untouched
+    assert _resolve_gemini_model("claude-3-5-haiku-20241022") == "claude-3-5-haiku-20241022"
+
+
+@patch("pipeline.format_detector.requests.post")
+@patch.dict("os.environ", {"GEMINI_API_KEY": "fake_key", "DISCOVERY_MODEL": "gemini-2.5-flash"})
+def test_38_deprecated_discovery_model_migrated_in_request(mock_post):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "candidates": [{
+            "content": {
+                "parts": [{"text": '{"method": "delimiter", "delimiter": ","}'}]
+            }
+        }]
+    }
+    mock_post.return_value = mock_resp
+
+    unique_log = "alpha,beta,gamma,delta,epsilon"
+    res = client.post("/api/logs/ingest", json={"logs": [unique_log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["inferred_by"] == "llm"
+
+    # The deprecated 2.5 model must never reach the API; it is migrated to 3.6-flash
+    call_args = mock_post.call_args
+    assert "gemini-3.6-flash" in call_args.args[0]
+    assert "gemini-2.5-flash" not in call_args.args[0]
+    sent_payload = call_args.kwargs.get("json", {})
+    assert sent_payload["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "low"}
 
