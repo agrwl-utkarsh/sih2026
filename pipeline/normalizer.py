@@ -3,19 +3,43 @@ class Normalizer:
         fields = parsed_data.get("parsed_fields", {})
         extra = parsed_data.get("extra", {})
         
-        # Merge any fields that aren't the primary ones into extra
-        # if they came from non-compositional parses (like json)
+        # Map common aliases for standard fields
+        aliases = {
+            "level": "severity",
+            "msg": "message",
+            "message": "message",
+            "ts": "timestamp",
+            "timestamp": "timestamp",
+            "time": "timestamp",
+            "host": "source",
+            "hostname": "source",
+            "source": "source",
+            "event": "event_type",
+            "event_type": "event_type"
+        }
+        
+        mapped_fields = {}
         for k, v in fields.items():
-            if k not in ["timestamp", "severity", "message", "source", "event_type"]:
+            lower_k = k.lower()
+            if lower_k in aliases:
+                mapped_fields[aliases[lower_k]] = v
+            else:
                 extra[k] = v
                 
-        # The parser now directly identifies these if possible via compositional extraction
+        severity = mapped_fields.get("severity")
+        if isinstance(severity, str):
+            severity = severity.lower()
+        elif severity is not None:
+            severity = str(severity)
+        else:
+            severity = "unknown"
+
         normalized = {
-            "timestamp": fields.get("timestamp"),
-            "source": fields.get("source"),
-            "event_type": fields.get("event_type", "unknown"),
-            "severity": fields.get("severity", "unknown").lower() if fields.get("severity") else "unknown",
-            "message": fields.get("message"),
+            "timestamp": mapped_fields.get("timestamp"),
+            "source": mapped_fields.get("source", "unknown"),
+            "event_type": mapped_fields.get("event_type", "unknown"),
+            "severity": severity,
+            "message": mapped_fields.get("message"),
             "raw": raw_log,
             "extra": extra
         }

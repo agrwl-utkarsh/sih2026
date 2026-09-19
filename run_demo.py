@@ -3,6 +3,7 @@ import json
 import time
 import subprocess
 import os
+import sys
 
 API_URL = "http://127.0.0.1:8000"
 
@@ -21,11 +22,17 @@ SAMPLE_LOGS = [
 def main():
     print("Starting FastAPI server in the background...")
     server_process = subprocess.Popen(
-        ["py", "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"]
+        [sys.executable, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"]
     )
     
     print("Waiting for server to start...")
-    time.sleep(8)
+    for _ in range(30):
+        try:
+            res = requests.get(f"{API_URL}/")
+            if res.status_code == 200:
+                break
+        except requests.exceptions.ConnectionError:
+            time.sleep(0.5)
 
     try:
         print("\n--- Sending Logs to Pipeline ---")

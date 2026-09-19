@@ -1,9 +1,7 @@
 import time
 
-class LLMDiscoveryEngine:
+class HeuristicDiscoveryEngine:
     def run_inference(self, log_entry: str, features: dict) -> dict:
-        time.sleep(1.2) # simulate latency
-        
         # 1. JSON Structural Fallback
         if features["is_json"]:
             return {
@@ -11,9 +9,9 @@ class LLMDiscoveryEngine:
                 "method": "json"
             }
             
-        # 2. Strict Delimiter Fallback (only if extremely high count relative to length, e.g. pure CSV)
+        # 2. Delimiter Fallback
         # For this v3 demo, we want almost everything to go through compositional extraction
-        if features["tok_count"] == 1 and features["comma_count"] > 3:
+        if features["comma_count"] >= 3:
             return {
                 "signature": f"Comma-Separated ({features['comma_count']+1} fields)",
                 "method": "delimiter",

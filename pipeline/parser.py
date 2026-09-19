@@ -11,15 +11,15 @@ class UniversalParser:
         # Timestamp regexes in order of precision/likelihood
         self.ts_patterns = [
             # ISO-8601 full
-            r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?',
+            r'^\[?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\]?',
             # YYYY-MM-DD HH:MM:SS (with optional milliseconds)
-            r'^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?',
+            r'^\[?\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?\]?',
             # Slash-delimited dates MM/DD/YYYY HH:MM:SS or YYYY/MM/DD
-            r'^\d{2,4}/\d{2}/\d{2,4}\s+\d{2}:\d{2}:\d{2}',
+            r'^\[?\d{2,4}/\d{2}/\d{2,4}\s+\d{2}:\d{2}:\d{2}\]?',
             # Syslog style Mon DD HH:MM:SS
-            r'^[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}',
+            r'^\[?[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\]?',
             # Unix epoch (10 or 13 digits)
-            r'^\d{10,13}\b'
+            r'^\[?\d{10,13}\b\]?'
         ]
 
     def fingerprint(self, log_entry: str) -> dict:
@@ -27,7 +27,7 @@ class UniversalParser:
         is_json = False
         if s.startswith('{') and s.endswith('}'):
             try: 
-                json.loads(s.replace('\\"', '"'))
+                json.loads(s)
                 is_json = True
             except: 
                 pass
@@ -49,7 +49,7 @@ class UniversalParser:
             cached_feat = json.loads(fp_str)
             if cached_feat["is_json"] and features["is_json"]:
                 return fp_str, rule
-            if not features["is_json"]:
+            if not features["is_json"] and not cached_feat.get("is_json", False):
                 if (cached_feat["pipe_count"] == features["pipe_count"] and
                     cached_feat["comma_count"] == features["comma_count"] and
                     cached_feat["eq_count"] == features["eq_count"] and
@@ -78,7 +78,13 @@ class UniversalParser:
                         if len(matched_str) == 13: ts = ts / 1000.0
                         iso = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).isoformat()
                     else:
-                        iso = dateutil.parser.parse(matched_str).isoformat()
+                        dt = dateutil.parser.parse(matched_str.strip('[]'))
+                        if dt.tzinfo is None:
+                            # if it's missing the year (like syslog), give it current year
+                            if dt.year == 1900:
+                                dt = dt.replace(year=datetime.datetime.now().year)
+                            dt = dt.replace(tzinfo=datetime.timezone.utc)
+                        iso = dt.isoformat()
                     return iso, matched_str, remainder
                 except:
                     pass
@@ -92,7 +98,11 @@ class UniversalParser:
                 for i in range(1, min(4, len(tokens)+1)):
                     candidate = " ".join(tokens[:i])
                     try:
-                        dt = dateutil.parser.parse(candidate, fuzzy=False)
+                        dt = dateutil.parser.parse(candidate.strip('[]'), fuzzy=False)
+                        if dt.tzinfo is None:
+                            if dt.year == 1900:
+                                dt = dt.replace(year=datetime.datetime.now().year)
+                            dt = dt.replace(tzinfo=datetime.timezone.utc)
                         remainder = line[len(candidate):].lstrip(' -:,|')
                         return dt.isoformat(), candidate, remainder
                     except:
@@ -136,7 +146,10 @@ class UniversalParser:
         method = rule.get("method")
         
         if method == "json":
-            result["parsed_fields"] = json.loads(log_entry.replace('\\"', '"'))
+            try:
+                result["parsed_fields"] = json.loads(log_entry)
+            except:
+                result["parsed_fields"] = {"raw_message": log_entry}
             
         elif method == "compositional":
             rem = log_entry.strip()
@@ -158,7 +171,7 @@ class UniversalParser:
             
             # 5. Key/Value Global Scan (over original log_entry)
             # Find key=value or key:value (if the value doesn't have spaces or if it's quoted)
-            kv_pairs = re.findall(r'([a-zA-Z0-9_-]+)=([^ ,;]+)', log_entry)
+            kv_pairs = re.findall(r'([a-zA-Z0-9_-]+)=([^ ,;\]\)]+)', log_entry)
             for k, v in kv_pairs:
                 result["extra"][k] = v
                 

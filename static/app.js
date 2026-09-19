@@ -80,19 +80,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     valMode.textContent = 'Cached (Fast Path)';
                 } else {
                     modeCard.classList.add('mode-discovery');
-                    valMode.textContent = 'Discovery (Inference)';
+                    valMode.textContent = 'Discovery (Heuristic)';
                 }
 
-                // Populate Inferred Fields Table
+                // Populate Extracted Fields Table
                 const allFields = { ...result.extracted_fields, ...result.normalized.extra };
                 for (const [key, value] of Object.entries(allFields)) {
                     if (key === 'raw_message' || value == null || value === '') continue;
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${key}</td><td>${value}</td>`;
+                    const tdKey = document.createElement('td');
+                    tdKey.textContent = key;
+                    const tdVal = document.createElement('td');
+                    tdVal.textContent = value;
+                    tr.appendChild(tdKey);
+                    tr.appendChild(tdVal);
                     fieldsBody.appendChild(tr);
                 }
                 
-                if (fieldsBody.innerHTML === '') {
+                if (fieldsBody.children.length === 0) {
                     fieldsBody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:#94a3b8">No fields extracted (Unstructured fallback)</td></tr>';
                 }
 

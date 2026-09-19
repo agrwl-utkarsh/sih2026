@@ -6,7 +6,8 @@ from fastapi.responses import FileResponse
 import os
 from pydantic import BaseModel
 from typing import List
-from pipeline.format_detector import LLMDiscoveryEngine
+import re
+from pipeline.format_detector import HeuristicDiscoveryEngine
 from pipeline.parser import UniversalParser
 from pipeline.normalizer import Normalizer
 
@@ -20,7 +21,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 async def read_index():
     return FileResponse(os.path.join(static_dir, "index.html"))
 
-discovery_engine = LLMDiscoveryEngine()
+discovery_engine = HeuristicDiscoveryEngine()
 parser = UniversalParser()
 normalizer = Normalizer()
 
@@ -34,20 +35,55 @@ def buffer_lines(lines: List[str]) -> List[str]:
         
     buffered = []
     current_entry = []
+    in_traceback = False
+    in_json = False
+    
+    new_log_pattern = re.compile(r'^([\{\[]|\d|<|[A-Z][a-z]{2}\s+\d|DEBUG|INFO|WARN|ERROR|CRITICAL|FATAL|TRACE)')
     
     for line in lines:
-        # If line starts with whitespace, it's definitely a continuation
-        # Or if we're inside a JSON blob. For simplicity, just check whitespace start
-        # A more robust check might look for timestamp shape at the beginning
-        if line.startswith(' ') or line.startswith('\t'):
-            if current_entry:
-                current_entry.append(line)
-            else:
-                current_entry = [line]
+        stripped = line.strip()
+        is_new = False
+        
+        if not current_entry:
+            is_new = True
         else:
-            if current_entry:
-                buffered.append('\n'.join(current_entry))
+            if in_json:
+                is_new = False
+                if stripped == '}' or stripped == '},':
+                    in_json = False
+            elif in_traceback:
+                if line.startswith(' ') or line.startswith('\t'):
+                    is_new = False
+                elif re.match(r'^\w+:', line):
+                    is_new = False
+                    in_traceback = False
+                else:
+                    is_new = True
+                    in_traceback = False
+            else:
+                if line.startswith(' ') or line.startswith('\t'):
+                    is_new = False
+                elif new_log_pattern.match(line):
+                    is_new = True
+                else:
+                    is_new = True
+                    
+        if is_new and current_entry:
+            buffered.append('\n'.join(current_entry))
             current_entry = [line]
+            if stripped == '{':
+                in_json = True
+            if line.startswith('Traceback '):
+                in_traceback = True
+        else:
+            if not current_entry:
+                current_entry = [line]
+                if stripped == '{':
+                    in_json = True
+                if line.startswith('Traceback '):
+                    in_traceback = True
+            else:
+                current_entry.append(line)
             
     if current_entry:
         buffered.append('\n'.join(current_entry))
@@ -67,39 +103,48 @@ async def ingest_logs(batch: LogBatch):
             
         start_time = time.time()
         
-        # Tier 1: Structural Fingerprinting (Runs on EVERY line)
-        features = parser.fingerprint(log)
-        
-        # Tier 2b: Execution (Check Cache by nearest fingerprint match)
-        fp_str, rule = parser.find_cached_rule(features)
-        
-        if fp_str and rule:
-            mode = "Cached"
-            # Execution Path (Fast)
-            parsed = parser.parse_with_rule(log, rule)
-        else:
-            # Tier 2a: Discovery (Run LLM/Heuristic Fallback)
-            mode = "Discovery"
-            rule = discovery_engine.run_inference(log, features)
+        try:
+            # Tier 1: Structural Fingerprinting (Runs on EVERY line)
+            features = parser.fingerprint(log)
             
-            # Cache the new rule dynamically
-            parser.store_rule(features, rule)
+            # Tier 2b: Execution (Check Cache by nearest fingerprint match)
+            fp_str, rule = parser.find_cached_rule(features)
             
-            # Execute it
-            parsed = parser.parse_with_rule(log, rule)
+            if fp_str and rule:
+                mode = "Cached"
+                # Execution Path (Fast)
+                parsed = parser.parse_with_rule(log, rule)
+            else:
+                # Tier 2a: Discovery (Run LLM/Heuristic Fallback)
+                mode = "Discovery"
+                rule = discovery_engine.run_inference(log, features)
+                
+                # Cache the new rule dynamically
+                parser.store_rule(features, rule)
+                
+                # Execute it
+                parsed = parser.parse_with_rule(log, rule)
+                
+            # Tier 3: Normalization
+            normalized = normalizer.normalize(parsed, raw_log=log)
             
-        # Tier 3: Normalization
-        normalized = normalizer.normalize(parsed, raw_log=log)
-        
-        latency_ms = round((time.time() - start_time) * 1000, 2)
-        
-        results.append({
-            "mode": mode,
-            "format": rule.get("signature", "Unknown Signature"),
-            "latency_ms": latency_ms,
-            "extracted_fields": parsed.get("parsed_fields", {}),
-            "normalized": normalized
-        })
+            latency_ms = round((time.time() - start_time) * 1000, 2)
+            
+            results.append({
+                "mode": mode,
+                "format": rule.get("signature", "Unknown Signature"),
+                "latency_ms": latency_ms,
+                "extracted_fields": parsed.get("parsed_fields", {}),
+                "normalized": normalized
+            })
+        except Exception as e:
+            results.append({
+                "mode": "Error",
+                "format": "Processing Error",
+                "latency_ms": round((time.time() - start_time) * 1000, 2),
+                "extracted_fields": {},
+                "normalized": {"raw": log, "error": str(e)}
+            })
         
     return {"processed_logs": results}
 
