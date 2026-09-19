@@ -25,7 +25,7 @@ class UniversalParser:
             "DEBUG", "ERROR", "FATAL", "EMERG", "ALERT", "CRIT", "INFO", "WARN", "ERR"
         ]
         words_pipe = "|".join(self.severity_words)
-        self.sev_pattern = re.compile(rf'^\[?({words_pipe})\]?(?![A-Za-z0-9_])', re.IGNORECASE)
+        self.sev_pattern = re.compile(rf'\[?({words_pipe})\]?(?![A-Za-z0-9_])', re.IGNORECASE)
         self.date_fallback_pattern = re.compile(r'(\d{4}-\d{2}-\d{2}|\d{2,4}/\d{2}/\d{2,4}|[A-Z][a-z]{2}\s+\d{1,2})', re.IGNORECASE)
 
     def snapshot_cache(self):
@@ -125,7 +125,7 @@ class UniversalParser:
 
     def detect_timestamp(self, line: str):
         line = line.strip()
-        for pattern in self.ts_patterns:
+        for i, pattern in enumerate(self.ts_patterns):
             match = re.search(pattern, line)
             if match and match.start() == 0:
                 matched_str = match.group(0)
@@ -133,7 +133,8 @@ class UniversalParser:
                 iso = parse_timestamp(clean_str)
                 if iso:
                     remainder = line[len(matched_str):].lstrip(' -:,|')
-                    return iso, remainder
+                    was_syslog = (i == 3)
+                    return iso, was_syslog, remainder
                     
         tokens = line.split()
         for i in range(1, min(4, len(tokens)+1)):
@@ -143,8 +144,9 @@ class UniversalParser:
                 iso = parse_timestamp(clean_cand)
                 if iso:
                     remainder = line[len(candidate):].lstrip(' -:,|')
-                    return iso, remainder
-        return None, line
+                    was_syslog = bool(re.search(r'^[A-Z][a-z]{2}\s+\d{1,2}', clean_cand))
+                    return iso, was_syslog, remainder
+        return None, False, line
 
     def parse_compositional(self, log_entry: str) -> dict:
         result = {"parsed_fields": {}, "extra": {}}
@@ -162,7 +164,7 @@ class UniversalParser:
             result["extra"]["facility"] = val >> 3
 
         # 1. Timestamp
-        ts_iso, rem = self.detect_timestamp(rem)
+        ts_iso, was_syslog, rem = self.detect_timestamp(rem)
         if ts_iso: 
             result["parsed_fields"]["timestamp"] = ts_iso
             
@@ -175,8 +177,7 @@ class UniversalParser:
                 result["parsed_fields"]["severity"] = match.group(1).upper()
                 
         # 3. Syslog host/program
-        if ts_iso and re.search(r'^[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}', ts_iso) or ts_iso and re.search(r'^[A-Z][a-z]{2}', ts_iso) or (ts_iso and len(ts_iso) > 5 and 'T' not in ts_iso):
-            # rudimentary syslog check or we can just try parsing host program
+        if ts_iso and was_syslog:
             host_match = re.match(r'^([a-zA-Z0-9_-]+)\s+([a-zA-Z0-9_-]+)(?:\[(\d+)\])?:\s*', rem)
             if host_match:
                 result["parsed_fields"]["source"] = host_match.group(1)
@@ -205,7 +206,7 @@ class UniversalParser:
             result["parsed_fields"]["message"] = rem.strip()
             
         # 6. KV scan
-        kv_pattern = re.compile(r'([a-zA-Z0-9_-]+)=("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'|[^ \t\n\r,;\]\}>&]+)')
+        kv_pattern = re.compile(r'([a-zA-Z0-9_-]+)=("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'|[^ \t\n\r,;\]\}>\)&]+)')
         for k, v in kv_pattern.findall(log_entry):
             if v.startswith('"') and v.endswith('"'): v = v[1:-1]
             elif v.startswith("'") and v.endswith("'"): v = v[1:-1]
