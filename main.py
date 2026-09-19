@@ -27,7 +27,7 @@ def read_index():
 @app.get("/api/health")
 def health():
     return {
-        "llm_configured": bool(os.environ.get("GEMINI_API_KEY")),
+        "llm_configured": bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")),
         "model": os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)
     }
 
@@ -58,20 +58,18 @@ def buffer_lines(lines: List[str]) -> List[str]:
             
         continues = False
         
-        # update JSON depth (crude but follows instructions)
-        # track "{" depth outside strings; if a line leaves a string open, stop treating the record as JSON
-        # This is very complex to do perfectly with regex, we'll do a simple count of { and }
-        
         if current_entry:
             if json_depth > 0:
                 continues = True
             elif line.startswith(' ') or line.startswith('\t'):
                 continues = True
-            elif line.startswith('Caused by:'):
+            elif line.startswith('Caused by:') or line.startswith('... '):
+                continues = True
+            elif line.strip().startswith('at ') and ('(' in line or '.' in line):
                 continues = True
             elif in_traceback and EXC_PATTERN.match(line):
                 continues = True
-                in_traceback = False # Exception line usually ends the traceback block
+                in_traceback = False
                 
         if continues and len(current_entry) < 500:
             current_entry.append(line)
@@ -83,7 +81,6 @@ def buffer_lines(lines: List[str]) -> List[str]:
             in_string = False
             in_traceback = False
             
-        # Update state for next line based on the current line being added
         i = 0
         while i < len(line):
             c = line[i]
@@ -101,7 +98,7 @@ def buffer_lines(lines: List[str]) -> List[str]:
             json_depth = 0
             in_string = False
             
-        if "Traceback (most recent call last):" in line:
+        if "Traceback (most recent call last):" in line or "Exception in thread" in line:
             in_traceback = True
 
     if current_entry:

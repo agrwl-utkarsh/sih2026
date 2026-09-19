@@ -22,12 +22,21 @@
                     <select id="sample-select">
                         <option value="">-- Select a sample log (or paste your own) --</option>
                         <option value='{"timestamp": "2026-09-13T10:00:00Z", "level": "error", "message": "Database connection failed", "host": "db-server-01"}'>JSON (Structured)</option>
-                        <option value="Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8">Syslog-style (Semi-Structured)</option>
+                        <option value="2026-09-19 14:32:10.123 [main] INFO org.springframework.boot.Startup - Started Application in 2.5s">Java / Spring Boot Application</option>
+                        <option value="INFO:root:Connected to database successfully">Python Standard Logger</option>
+                        <option value="2026-09-19T14:32:10.123456789Z stdout F Starting web server on :8080">Kubernetes / CRI Container Log</option>
+                        <option value='2026/09/19 14:32:10 [error] 1234#0: *1 open() "/favicon.ico" failed, client: 192.168.1.10'>Nginx Server Error Log</option>
+                        <option value="<165>1 2026-09-19T14:32:10.003Z mymachine.example.com evntslog 1234 ID47 - An application event log entry">Modern RFC 5424 Syslog</option>
+                        <option value="Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8">Syslog RFC 3164 (BSD)</option>
+                        <option value="CEF:0|SecurityCompany|Firewall|1.0|100|Packet dropped|5|src=10.0.0.1 dst=10.0.0.2 spt=1234 dpt=80">CEF (ArcSight / SIEM Firewall)</option>
+                        <option value='ts=2026-09-19T14:32:10.123Z level=error caller=main.go:42 msg="crash detected" err="null pointer" thread_id=9'>Logfmt / Key-Value</option>
+                        <option value="2026-09-19 14:32:10.123 UTC [1234] postgres@mydb LOG: duration: 12.345 ms statement: SELECT * FROM users;">PostgreSQL Database Log</option>
+                        <option value="Failed password for invalid user admin from 192.168.1.105 port 54321 ssh2">Unstructured SSH Auth Failure</option>
+                        <option value='192.168.1.100 - john [19/Sep/2026:13:24:00 +0000] "GET /index.html HTTP/1.1" 200 4321 "https://google.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"'>Web Access / Apache & Nginx (Combined Log)</option>
                         <option value="2026-09-13T10:15:30Z,ERROR,Connection reset by peer,app-server-02,pid=992">CSV / Delimited</option>
                         <option value="2026-09-13T10:20:00Z | CRITICAL | PaymentGateway | Transaction txn-8829 failed due to timeout after 3000ms">Custom (Pipe-Delimited)</option>
-                        <option value="Connection refused from 192.168.1.5 on port 22">Generic Unstructured</option>
-                        <option value='192.168.1.100 - john [19/Sep/2026:13:24:00 +0000] "GET /index.html HTTP/1.1" 200 4321 "https://google.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"'>Web Access / Nginx & Apache (Combined Log)</option>
-                        <option value="##[2026-09-13]<node-99>{temp:87.2C}(status=OK)">Made-up Unknown Format</option>
+                        <option value="Connection refused from 192.168.1.5 on port 22">Generic Unstructured Network</option>
+                        <option value="##[2026-09-13]<node-99>{temp:87.2C}(status=OK)">Custom Embedded Format</option>
                         <option value="2026-06-14 10:15:32 ERROR [MainThread] Connection timeout while accessing database: host=db01, user=admin">Regression (Section 5)</option>
                     </select>
                 </div>
