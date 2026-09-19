@@ -32,7 +32,10 @@
                     </select>
                 </div>
                 <textarea id="log-input" placeholder="Paste your raw logs here (multiple lines supported)..."></textarea>
-                <button id="process-btn">Run Pipeline</button>
+                <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
+                    <button id="process-btn" style="flex: 3; margin-top: 0;">Run Pipeline</button>
+                    <button id="clear-btn" type="button" style="flex: 1; margin-top: 0; background: #334155; border: 1px solid #475569; color: #94a3b8;">Clear</button>
+                </div>
             </div>
 
             <!-- Multi-card Output Container -->

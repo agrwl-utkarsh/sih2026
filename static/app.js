@@ -9,13 +9,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     sampleSelect.addEventListener('change', (e) => {
         if (e.target.value) {
-            if (logInput.value.trim()) {
-                logInput.value = logInput.value.trim() + '\n' + e.target.value;
-            } else {
-                logInput.value = e.target.value;
-            }
+            logInput.value = e.target.value;
+            resultsContainer.textContent = '';
         }
     });
+
+    const clearBtn = document.getElementById('clear-btn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            logInput.value = '';
+            sampleSelect.value = '';
+            resultsContainer.textContent = '';
+            logInput.focus();
+        });
+    }
 
     const refreshCache = async () => {
         try {
