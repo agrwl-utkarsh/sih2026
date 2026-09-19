@@ -67,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const data = await response.json();
             
+            const fragment = document.createDocumentFragment();
             data.processed_logs.forEach(result => {
                 const clone = template.content.cloneNode(true);
                 
@@ -131,8 +132,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 logOutput.textContent = JSON.stringify(result.normalized, null, 2);
-                resultsContainer.appendChild(clone);
+                fragment.appendChild(clone);
             });
+            resultsContainer.appendChild(fragment);
             
             await refreshCache();
 

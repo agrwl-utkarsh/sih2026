@@ -9,6 +9,7 @@ from .timeutil import parse_timestamp
 class UniversalParser:
     def __init__(self):
         self.cache = {}
+        self._parsed_fps = {}
         self.cache_lock = threading.Lock()
         
         self.ts_patterns = [
@@ -19,6 +20,7 @@ class UniversalParser:
             r'^\[?\d{4}-\d{2}-\d{2}\b\]?',
             r'^\[?\d{10,13}\b\]?'
         ]
+        self.compiled_ts_patterns = [re.compile(p) for p in self.ts_patterns]
 
         self.severity_words = [
             "CRITICAL", "WARNING", "EMERGENCY", "SEVERE", "NOTICE", "TRACE", 
@@ -39,7 +41,9 @@ class UniversalParser:
                 if len(self.cache) >= 500:
                     oldest_key = next(iter(self.cache))
                     del self.cache[oldest_key]
+                    self._parsed_fps.pop(oldest_key, None)
             self.cache[fp_str] = rule
+            self._parsed_fps[fp_str] = dict(features)
 
     def looks_like_ts_or_sev(self, field: str) -> bool:
         field = field.strip()
@@ -93,8 +97,14 @@ class UniversalParser:
         best_diff = float('inf')
 
         with self.cache_lock:
+            if not self.cache and self._parsed_fps:
+                self._parsed_fps.clear()
             for fp_str, rule in self.cache.items():
-                cached_feat = json.loads(fp_str)
+                cached_feat = self._parsed_fps.get(fp_str)
+                if cached_feat is None:
+                    cached_feat = json.loads(fp_str)
+                    self._parsed_fps[fp_str] = cached_feat
+
                 if cached_feat["is_json"] != features["is_json"]:
                     continue
                     
@@ -125,8 +135,8 @@ class UniversalParser:
 
     def detect_timestamp(self, line: str):
         line = line.strip()
-        for i, pattern in enumerate(self.ts_patterns):
-            match = re.search(pattern, line)
+        for i, pattern in enumerate(self.compiled_ts_patterns):
+            match = pattern.search(line)
             if match and match.start() == 0:
                 matched_str = match.group(0)
                 clean_str = matched_str.strip('[]')
@@ -134,7 +144,6 @@ class UniversalParser:
                 if iso:
                     remainder = line[len(matched_str):].lstrip(' -:,|')
                     was_syslog = (i == 3)
-                    remainder = line[len(matched_str):].lstrip(' -:,|')
                     return iso, was_syslog, remainder
                     
         tokens = line.split()
@@ -146,7 +155,6 @@ class UniversalParser:
                 if iso:
                     remainder = line[len(candidate):].lstrip(' -:,|')
                     was_syslog = bool(re.search(r'^[A-Z][a-z]{2}\s+\d{1,2}', clean_cand))
-                    remainder = line[len(matched_str):].lstrip(' -:,|')
                     return iso, was_syslog, remainder
         return None, False, line
 

@@ -38,6 +38,8 @@ normalizer = Normalizer()
 class LogBatch(BaseModel):
     logs: Annotated[List[Annotated[str, StringConstraints(max_length=10000)]], Field(max_length=1000)]
 
+EXC_PATTERN = re.compile(r'^[A-Za-z_][\w.]*(Error|Exception|Exit|Interrupt|Warning)\b')
+
 def buffer_lines(lines: List[str]) -> List[str]:
     if not lines:
         return []
@@ -48,7 +50,6 @@ def buffer_lines(lines: List[str]) -> List[str]:
     json_depth = 0
     in_string = False
     in_traceback = False
-    exc_pattern = re.compile(r'^[A-Za-z_][\w.]*(Error|Exception|Exit|Interrupt|Warning)\b')
     
     for line in lines:
         stripped = line.strip()
@@ -68,7 +69,7 @@ def buffer_lines(lines: List[str]) -> List[str]:
                 continues = True
             elif line.startswith('Caused by:'):
                 continues = True
-            elif in_traceback and exc_pattern.match(line):
+            elif in_traceback and EXC_PATTERN.match(line):
                 continues = True
                 in_traceback = False # Exception line usually ends the traceback block
                 

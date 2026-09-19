@@ -263,3 +263,14 @@ def test_19_ncsa_combined_log():
     assert norm["extra"]["http_method"] == "GET"
     assert norm["extra"]["http_path"] == "/index.html"
 
+def test_20_date_fallback_without_timestamp():
+    log = 'Jan 15 myhost myapp: connection established'
+    res = client.post("/api/logs/ingest", json={"logs": [log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]["normalized"]
+    assert data["timestamp"] is not None
+    assert "2026-01-15" in data["timestamp"] or "2025-01-15" in data["timestamp"]
+    assert data["source"] == "myhost"
+    assert data["extra"]["program"] == "myapp"
+
+
