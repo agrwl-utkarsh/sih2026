@@ -1,145 +1,217 @@
 import json
 import re
-import dateutil.parser
 import warnings
-import datetime
+import threading
+import csv
+import io
+from .timeutil import parse_timestamp
 
 class UniversalParser:
     def __init__(self):
         self.cache = {}
+        self.cache_lock = threading.Lock()
         
-        # Timestamp regexes in order of precision/likelihood
         self.ts_patterns = [
-            # ISO-8601 full
             r'^\[?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\]?',
-            # YYYY-MM-DD HH:MM:SS (with optional milliseconds)
             r'^\[?\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?\]?',
-            # Slash-delimited dates MM/DD/YYYY HH:MM:SS or YYYY/MM/DD
             r'^\[?\d{2,4}/\d{2}/\d{2,4}\s+\d{2}:\d{2}:\d{2}\]?',
-            # Syslog style Mon DD HH:MM:SS
             r'^\[?[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\]?',
-            # Unix epoch (10 or 13 digits)
+            r'^\[?\d{4}-\d{2}-\d{2}\b\]?',
             r'^\[?\d{10,13}\b\]?'
         ]
+
+        self.severity_words = [
+            "CRITICAL", "WARNING", "EMERGENCY", "SEVERE", "NOTICE", "TRACE", 
+            "DEBUG", "ERROR", "FATAL", "EMERG", "ALERT", "CRIT", "INFO", "WARN", "ERR"
+        ]
+        words_pipe = "|".join(self.severity_words)
+        self.sev_pattern = re.compile(rf'^\[?({words_pipe})\]?(?![A-Za-z0-9_])', re.IGNORECASE)
+        self.date_fallback_pattern = re.compile(r'(\d{4}-\d{2}-\d{2}|\d{2,4}/\d{2}/\d{2,4}|[A-Z][a-z]{2}\s+\d{1,2})', re.IGNORECASE)
+
+    def snapshot_cache(self):
+        with self.cache_lock:
+            return [{"fingerprint_features": json.loads(k), "inferred_rule": v} for k, v in self.cache.items()]
+
+    def store_rule(self, features: dict, rule: dict):
+        fp_str = json.dumps(features, sort_keys=True)
+        with self.cache_lock:
+            if fp_str not in self.cache:
+                if len(self.cache) >= 500:
+                    oldest_key = next(iter(self.cache))
+                    del self.cache[oldest_key]
+            self.cache[fp_str] = rule
+
+    def looks_like_ts_or_sev(self, field: str) -> bool:
+        field = field.strip()
+        if not field:
+            return False
+        if parse_timestamp(field):
+            return True
+        if self.sev_pattern.match(field):
+            return True
+        return False
 
     def fingerprint(self, log_entry: str) -> dict:
         s = log_entry.strip()
         is_json = False
         if s.startswith('{') and s.endswith('}'):
             try: 
-                json.loads(s)
-                is_json = True
+                parsed = json.loads(s)
+                if isinstance(parsed, dict):
+                    is_json = True
             except: 
                 pass
                 
-        features = {
+        tok_count = len(s.split())
+        pipe_count = s.count('|')
+        comma_count = s.count(',')
+        eq_count = s.count('=')
+        bracket_count = s.count('[') + s.count('(')
+        
+        delim = None
+        if not is_json:
+            if pipe_count >= 2:
+                delim = "|"
+            elif comma_count >= 3:
+                first_field = s.split(',', 1)[0]
+                if tok_count == 1 or self.looks_like_ts_or_sev(first_field):
+                    delim = ","
+                    
+        return {
             "is_json": is_json,
-            "tok_count": len(s.split()),
-            "pipe_count": s.count('|'),
-            "comma_count": s.count(','),
-            "eq_count": s.count('='),
-            "colon_count": s.count(':'),
-            "bracket_count": s.count('[') + s.count('('),
-            "len_bucket": len(s) // 50
+            "tok_count": tok_count,
+            "pipe_count": pipe_count,
+            "comma_count": comma_count,
+            "eq_count": eq_count,
+            "bracket_count": bracket_count,
+            "delim": delim
         }
-        return features
 
     def find_cached_rule(self, features: dict):
-        for fp_str, rule in self.cache.items():
-            cached_feat = json.loads(fp_str)
-            if cached_feat["is_json"] and features["is_json"]:
-                return fp_str, rule
-            if not features["is_json"] and not cached_feat.get("is_json", False):
+        best_match_fp = None
+        best_match_rule = None
+        best_diff = float('inf')
+
+        with self.cache_lock:
+            for fp_str, rule in self.cache.items():
+                cached_feat = json.loads(fp_str)
+                if cached_feat["is_json"] != features["is_json"]:
+                    continue
+                    
+                if features["is_json"]:
+                    if rule.get("method") == "json":
+                        return fp_str, rule
+                    continue
+                    
+                if cached_feat.get("delim") != features["delim"]:
+                    continue
+                    
                 if (cached_feat["pipe_count"] == features["pipe_count"] and
                     cached_feat["comma_count"] == features["comma_count"] and
                     cached_feat["eq_count"] == features["eq_count"] and
-                    cached_feat["bracket_count"] == features["bracket_count"] and
-                    abs(cached_feat["tok_count"] - features["tok_count"]) <= 4):
-                    return fp_str, rule
-        return None, None
+                    cached_feat["bracket_count"] == features["bracket_count"]):
+                    
+                    diff = abs(cached_feat["tok_count"] - features["tok_count"])
+                    if features["delim"] is not None:
+                        if diff == 0:
+                            return fp_str, rule
+                    else:
+                        if diff <= 4 and diff < best_diff:
+                            best_diff = diff
+                            best_match_fp = fp_str
+                            best_match_rule = rule
 
-    def store_rule(self, features: dict, rule: dict):
-        fp_str = json.dumps(features, sort_keys=True)
-        self.cache[fp_str] = rule
+        return best_match_fp, best_match_rule
 
     def detect_timestamp(self, line: str):
         line = line.strip()
-        # 1. Try fixed patterns
         for pattern in self.ts_patterns:
             match = re.search(pattern, line)
             if match and match.start() == 0:
                 matched_str = match.group(0)
-                remainder = line[len(matched_str):].lstrip(' -:,|')
-                # Parse to ISO
-                try:
-                    # handle epoch
-                    if matched_str.isdigit():
-                        ts = int(matched_str)
-                        if len(matched_str) == 13: ts = ts / 1000.0
-                        iso = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).isoformat()
-                    else:
-                        dt = dateutil.parser.parse(matched_str.strip('[]'))
-                        if dt.tzinfo is None:
-                            # if it's missing the year (like syslog), give it current year
-                            if dt.year == 1900:
-                                dt = dt.replace(year=datetime.datetime.now().year)
-                            dt = dt.replace(tzinfo=datetime.timezone.utc)
-                        iso = dt.isoformat()
-                    return iso, matched_str, remainder
-                except:
-                    pass
-        
-        # 2. Flexible fallback (only check first 30 chars for safety)
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                # Look for something that dateutil can parse at the very beginning
-                tokens = line.split()
-                for i in range(1, min(4, len(tokens)+1)):
-                    candidate = " ".join(tokens[:i])
-                    try:
-                        dt = dateutil.parser.parse(candidate.strip('[]'), fuzzy=False)
-                        if dt.tzinfo is None:
-                            if dt.year == 1900:
-                                dt = dt.replace(year=datetime.datetime.now().year)
-                            dt = dt.replace(tzinfo=datetime.timezone.utc)
-                        remainder = line[len(candidate):].lstrip(' -:,|')
-                        return dt.isoformat(), candidate, remainder
-                    except:
-                        pass
-        except:
-            pass
-            
-        return None, None, line
+                clean_str = matched_str.strip('[]')
+                iso = parse_timestamp(clean_str)
+                if iso:
+                    remainder = line[len(matched_str):].lstrip(' -:,|')
+                    return iso, remainder
+                    
+        tokens = line.split()
+        for i in range(1, min(4, len(tokens)+1)):
+            candidate = " ".join(tokens[:i])
+            clean_cand = candidate.strip('[]')
+            if self.date_fallback_pattern.search(clean_cand):
+                iso = parse_timestamp(clean_cand)
+                if iso:
+                    remainder = line[len(candidate):].lstrip(' -:,|')
+                    return iso, remainder
+        return None, line
 
-    def detect_severity(self, line: str):
-        # Look for severity at start of remainder
-        match = re.search(r'^(DEBUG|INFO|WARN|WARNING|ERROR|CRITICAL|FATAL|TRACE)\b', line, re.IGNORECASE)
+    def parse_compositional(self, log_entry: str) -> dict:
+        result = {"parsed_fields": {}, "extra": {}}
+        rem = log_entry.strip()
+        
+        # 0. Syslog prefix
+        match = re.search(r'^<(\d{1,3})>', rem)
         if match:
             matched_str = match.group(0)
-            remainder = line[len(matched_str):].lstrip(' -:,|')
-            return matched_str.upper(), remainder
-            
-        # Check syslog prefix <134>
-        match = re.search(r'^<(\d{1,3})>', line)
-        if match:
-            matched_str = match.group(0)
-            remainder = line[len(matched_str):].lstrip(' -:,|')
+            rem = rem[len(matched_str):].lstrip(' -:,|')
             val = int(match.group(1))
             sev_num = val & 7
             sevs = {0:"CRITICAL", 1:"CRITICAL", 2:"CRITICAL", 3:"ERROR", 4:"WARNING", 5:"INFO", 6:"INFO", 7:"DEBUG"}
-            return sevs.get(sev_num, "UNKNOWN"), remainder
-            
-        return None, line
+            result["parsed_fields"]["severity"] = sevs.get(sev_num, "UNKNOWN")
+            result["extra"]["facility"] = val >> 3
 
-    def detect_brackets(self, line: str):
-        match = re.search(r'^\[([^\]]+)\]|^\(([^)]+)\)', line)
+        # 1. Timestamp
+        ts_iso, rem = self.detect_timestamp(rem)
+        if ts_iso: 
+            result["parsed_fields"]["timestamp"] = ts_iso
+            
+        # 2. Severity
+        if "severity" not in result["parsed_fields"]:
+            match = self.sev_pattern.search(rem)
+            if match and match.start() == 0:
+                matched_str = match.group(0)
+                rem = rem[len(matched_str):].lstrip(' -:,|')
+                result["parsed_fields"]["severity"] = match.group(1).upper()
+                
+        # 3. Syslog host/program
+        if ts_iso and re.search(r'^[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}', ts_iso) or ts_iso and re.search(r'^[A-Z][a-z]{2}', ts_iso) or (ts_iso and len(ts_iso) > 5 and 'T' not in ts_iso):
+            # rudimentary syslog check or we can just try parsing host program
+            host_match = re.match(r'^([a-zA-Z0-9_-]+)\s+([a-zA-Z0-9_-]+)(?:\[(\d+)\])?:\s*', rem)
+            if host_match:
+                result["parsed_fields"]["source"] = host_match.group(1)
+                result["extra"]["program"] = host_match.group(2)
+                if host_match.group(3):
+                    result["extra"]["pid"] = host_match.group(3)
+                rem = rem[len(host_match.group(0)):]
+                
+        # 4. Context brackets
+        match = re.search(r'^\[([^\]]+)\]|^\(([^)]+)\)', rem)
         if match:
             matched_str = match.group(0)
             content = match.group(1) or match.group(2)
-            remainder = line[len(matched_str):].lstrip(' -:,|')
-            return content, remainder
-        return None, line
+            rem = rem[len(matched_str):].lstrip(' -:,|')
+            result["extra"]["context"] = content
+            
+            if "severity" not in result["parsed_fields"]:
+                sev_match = self.sev_pattern.search(rem)
+                if sev_match and sev_match.start() == 0:
+                    sev_str = sev_match.group(0)
+                    rem = rem[len(sev_str):].lstrip(' -:,|')
+                    result["parsed_fields"]["severity"] = sev_match.group(1).upper()
+
+        # 5. Message
+        if rem: 
+            result["parsed_fields"]["message"] = rem.strip()
+            
+        # 6. KV scan
+        kv_pattern = re.compile(r'([a-zA-Z0-9_-]+)=("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'|[^ \t\n\r,;\]\}>&]+)')
+        for k, v in kv_pattern.findall(log_entry):
+            if v.startswith('"') and v.endswith('"'): v = v[1:-1]
+            elif v.startswith("'") and v.endswith("'"): v = v[1:-1]
+            result["extra"][k] = v
+
+        return result
 
     def parse_with_rule(self, log_entry: str, rule: dict) -> dict:
         result = {"parsed_fields": {}, "extra": {}}
@@ -147,41 +219,71 @@ class UniversalParser:
         
         if method == "json":
             try:
-                result["parsed_fields"] = json.loads(log_entry)
+                parsed = json.loads(log_entry)
+                if isinstance(parsed, dict):
+                    result["parsed_fields"] = parsed
+                    return result
             except:
-                result["parsed_fields"] = {"raw_message": log_entry}
+                pass
+            method = "compositional"
             
-        elif method == "compositional":
-            rem = log_entry.strip()
-            
-            # 1. Timestamp zone
-            ts_iso, ts_raw, rem = self.detect_timestamp(rem)
-            if ts_iso: result["parsed_fields"]["timestamp"] = ts_iso
-            
-            # 2. Severity zone
-            sev, rem = self.detect_severity(rem)
-            if sev: result["parsed_fields"]["severity"] = sev
-            
-            # 3. Bracket zone (e.g. thread/context)
-            ctx, rem = self.detect_brackets(rem)
-            if ctx: result["extra"]["context"] = ctx
-            
-            # 4. Message (remainder)
-            if rem: result["parsed_fields"]["message"] = rem.strip()
-            
-            # 5. Key/Value Global Scan (over original log_entry)
-            # Find key=value or key:value (if the value doesn't have spaces or if it's quoted)
-            kv_pairs = re.findall(r'([a-zA-Z0-9_-]+)=([^ ,;\]\)]+)', log_entry)
-            for k, v in kv_pairs:
-                result["extra"][k] = v
-                
-        elif method == "delimiter":
+        if method == "delimiter":
             delim = rule.get("delimiter")
-            parts = log_entry.split(delim)
-            for i, p in enumerate(parts):
-                result["parsed_fields"][f"field_{i}"] = p.strip()
+            try:
+                reader = csv.reader(io.StringIO(log_entry.strip()), delimiter=delim)
+                parts = next(reader)
+            except:
+                parts = [p.strip() for p in log_entry.split(delim)]
                 
-        else:
-            result["parsed_fields"]["raw_message"] = log_entry
+            parts = [p.strip() for p in parts if p.strip()]
+            
+            ts_val = None
+            sev_val = None
+            rests = []
+            
+            for p in parts:
+                if not ts_val:
+                    iso = parse_timestamp(p)
+                    if iso:
+                        ts_val = iso
+                        continue
+                if not sev_val:
+                    if self.sev_pattern.match(p) and len(p) <= 12:
+                        sev_val = p.strip('[]').upper()
+                        continue
+                if '=' in p:
+                    k, v = p.split('=', 1)
+                    if ' ' not in k:
+                        result["extra"][k.strip()] = v.strip()
+                        continue
+                rests.append(p)
+                
+            if not ts_val and not sev_val:
+                for i, p in enumerate(parts):
+                    result["parsed_fields"][f"field_{i}"] = p
+                return result
+                
+            if ts_val: result["parsed_fields"]["timestamp"] = ts_val
+            if sev_val: result["parsed_fields"]["severity"] = sev_val
+            
+            if rests:
+                lengths = [len(r.split()) for r in rests]
+                msg_idx = lengths.index(max(lengths))
+                result["parsed_fields"]["message"] = rests[msg_idx]
+                
+                src_found = False
+                for i, r in enumerate(rests):
+                    if i != msg_idx:
+                        if not src_found and len(r.split()) == 1:
+                            result["parsed_fields"]["source"] = r
+                            src_found = True
+                        else:
+                            result["extra"][f"field_{i}"] = r
+                            
+            return result
 
+        if method == "compositional":
+            return self.parse_compositional(log_entry)
+            
+        result["parsed_fields"]["raw_message"] = log_entry
         return result
