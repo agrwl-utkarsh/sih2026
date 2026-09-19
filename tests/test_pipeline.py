@@ -407,3 +407,38 @@ def test_30_auth_failure_entity_extraction():
 
 
 
+
+@patch("pipeline.format_detector.requests.post")
+@patch.dict("os.environ", {"GEMINI_API_KEY": "fake_key"})
+def test_31_llm_error_surfaced_on_failure(mock_post):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 403
+    mock_resp.text = '{"error": {"message": "API key not valid"}}'
+    mock_post.return_value = mock_resp
+
+    unique_log = "ZXQW alpha [b1] (c2) k1=v1 k2=v2 k3=v3 k4=v4 tail"
+    res = client.post("/api/logs/ingest", json={"logs": [unique_log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["mode"] == "Discovery"
+    assert data["inferred_by"] == "heuristic"
+    assert data["llm_error"] is not None
+    assert "403" in data["llm_error"]
+    assert "API key not valid" in data["llm_error"]
+
+    # Cached path must not keep repeating a stale error
+    res = client.post("/api/logs/ingest", json={"logs": [unique_log]})
+    data = res.json()["processed_logs"][0]
+    assert data["mode"] == "Cached"
+    assert data["llm_error"] is None
+
+
+@patch.dict("os.environ", {}, clear=True)
+def test_32_llm_error_when_no_key_configured():
+    unique_log = "QWZX beta [d3] (e4) m1=v1 m2=v2 m3=v3 m4=v4 tail"
+    res = client.post("/api/logs/ingest", json={"logs": [unique_log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["mode"] == "Discovery"
+    assert data["inferred_by"] == "heuristic"
+    assert data["llm_error"] == "No LLM API key configured (set GEMINI_API_KEY or ANTHROPIC_API_KEY)"
