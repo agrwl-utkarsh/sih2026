@@ -1,5 +1,6 @@
 import datetime
 import dateutil.parser
+import re
 
 def parse_timestamp(value, now=None) -> str | None:
     if value is None or isinstance(value, bool) or value == "":
@@ -23,7 +24,29 @@ def parse_timestamp(value, now=None) -> str | None:
                 
         if not isinstance(value, str):
             value = str(value)
-            
+
+        # Handle Apache / NCSA timestamp format: dd/Mon/yyyy:hh:mm:ss with optional timezone
+        clean_val = value.strip('[]')
+        match_ncsa = re.match(r'^(\d{1,2}/[A-Za-z]{3}/\d{4}):(\d{2}:\d{2}:\d{2})(?:\s+([+\-]\d{4}))?$', clean_val)
+        if match_ncsa:
+            d_part, t_part, tz_part = match_ncsa.groups()
+            normalized_dt_str = f"{d_part} {t_part}"
+            if tz_part:
+                normalized_dt_str += f" {tz_part}"
+            try:
+                dt = dateutil.parser.parse(normalized_dt_str)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=datetime.timezone.utc)
+                dt = dt.astimezone(datetime.timezone.utc)
+                iso = dt.isoformat()
+                if iso.endswith("+00:00"):
+                    iso = iso.replace("+00:00", "Z")
+                if not iso.endswith("Z"):
+                    iso += "Z"
+                return iso
+            except Exception:
+                pass
+                
         now_dt = now if now else datetime.datetime.now(datetime.timezone.utc)
         if isinstance(now_dt, str):
             now_dt = dateutil.parser.parse(now_dt)

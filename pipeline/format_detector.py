@@ -36,7 +36,7 @@ class DiscoveryEngine:
             if llm_rule:
                 return llm_rule
                 
-        return self._heuristic_fallback(features)
+        return self._heuristic_fallback(features, log_entry)
 
     def _call_llm(self, log_entry: str, features: dict, api_key: str) -> dict | None:
         model = os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)
@@ -128,11 +128,14 @@ class DiscoveryEngine:
         elif method == "json":
             rule["signature"] = "JSON Object"
         else:
-            rule["signature"] = f"Compositional Zone Extraction (Tokens: {features['tok_count']})"
+            if re.search(r'\[[\w:/]+\s+[+\-]\d{4}\]\s+"[^"]+"\s+\d{3}', log_entry):
+                rule["signature"] = "NCSA Combined / Web Access Log"
+            else:
+                rule["signature"] = f"Compositional Zone Extraction (Tokens: {features['tok_count']})"
             
         return rule
 
-    def _heuristic_fallback(self, features: dict) -> dict:
+    def _heuristic_fallback(self, features: dict, log_entry: str = "") -> dict:
         rule = {"inferred_by": "heuristic"}
         if features["is_json"]:
             rule["method"] = "json"
@@ -146,7 +149,10 @@ class DiscoveryEngine:
             rule["signature"] = f"{d_name}-Delimited ({fields} fields)"
         else:
             rule["method"] = "compositional"
-            rule["signature"] = f"Compositional Zone Extraction (Tokens: {features['tok_count']}, K/V: {features['eq_count']}, Brackets: {features['bracket_count']})"
+            if log_entry and re.search(r'\[[\w:/]+\s+[+\-]\d{4}\]\s+"[^"]+"\s+\d{3}', log_entry):
+                rule["signature"] = "NCSA Combined / Web Access Log"
+            else:
+                rule["signature"] = f"Compositional Zone Extraction (Tokens: {features['tok_count']}, K/V: {features['eq_count']}, Brackets: {features['bracket_count']})"
         return rule
 
 LLMDiscoveryEngine = DiscoveryEngine

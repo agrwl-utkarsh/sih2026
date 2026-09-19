@@ -154,6 +154,54 @@ class UniversalParser:
         result = {"parsed_fields": {}, "extra": {}}
         rem = log_entry.strip()
         
+        # Check Combined / Common Log Format (NCSA / Apache / Nginx)
+        # e.g.: 192.168.1.100 - john [19/Sep/2026:13:24:00 +0000] "GET /index.html HTTP/1.1" 200 4321 "https://google.com" "Mozilla/5.0..."
+        combined_match = re.match(
+            r'^(\S+)\s+(\S+)\s+(\S+)\s+\[([\w:/]+\s+[+\-]\d{4})\]\s+"([^"]+)"\s+(\d{3})\s+(\S+)(?:\s+"([^"]*)"\s+"([^"]*)")?',
+            rem
+        )
+        if combined_match:
+            ip, ident, user, raw_ts, request, status, size, referer, agent = combined_match.groups()
+            result["parsed_fields"]["source"] = ip
+            ts_iso = parse_timestamp(raw_ts)
+            if ts_iso:
+                result["parsed_fields"]["timestamp"] = ts_iso
+            result["parsed_fields"]["message"] = request
+            result["parsed_fields"]["event_type"] = "http_request"
+            
+            # Map HTTP status to canonical severity
+            try:
+                status_int = int(status)
+                result["extra"]["http_status"] = status_int
+                if status_int >= 500:
+                    result["parsed_fields"]["severity"] = "ERROR"
+                elif status_int >= 400:
+                    result["parsed_fields"]["severity"] = "WARNING"
+                else:
+                    result["parsed_fields"]["severity"] = "INFO"
+            except ValueError:
+                pass
+                
+            if ident and ident != "-":
+                result["extra"]["ident"] = ident
+            if user and user != "-":
+                result["extra"]["user"] = user
+            if size and size != "-":
+                result["extra"]["bytes_sent"] = int(size) if size.isdigit() else size
+            if referer and referer != "-":
+                result["extra"]["referer"] = referer
+            if agent and agent != "-":
+                result["extra"]["user_agent"] = agent
+                
+            req_tokens = request.split()
+            if len(req_tokens) >= 2:
+                result["extra"]["http_method"] = req_tokens[0]
+                result["extra"]["http_path"] = req_tokens[1]
+                if len(req_tokens) >= 3:
+                    result["extra"]["http_proto"] = req_tokens[2]
+                    
+            return result
+
         # 0. Syslog prefix
         match = re.search(r'^<(\d{1,3})>', rem)
         if match:

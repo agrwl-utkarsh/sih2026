@@ -206,10 +206,17 @@ def test_17_limits():
     assert res.json()["processed_logs"] == []
 
 @patch("pipeline.format_detector.requests.post")
-@patch.dict("os.environ", {"ANTHROPIC_API_KEY": "fake_key"})
+@patch.dict("os.environ", {"GEMINI_API_KEY": "fake_key"})
 def test_18_llm_testing(mock_post):
     mock_resp = MagicMock()
-    mock_resp.json.return_value = {"content": [{"text": '```json\n{"method": "delimiter", "delimiter": "|"}\n```'}]}
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "candidates": [{
+            "content": {
+                "parts": [{"text": '```json\n{"method": "delimiter", "delimiter": "|"}\n```'}]
+            }
+        }]
+    }
     mock_post.return_value = mock_resp
     
     # Mock LLM Success
@@ -219,7 +226,13 @@ def test_18_llm_testing(mock_post):
     assert data["format"] == "Pipe-Delimited"
     
     # Mock LLM Invalid method -> fallback
-    mock_resp.json.return_value = {"content": [{"text": '{"method": "magic"}'}]}
+    mock_resp.json.return_value = {
+        "candidates": [{
+            "content": {
+                "parts": [{"text": '{"method": "magic"}'}]
+            }
+        }]
+    }
     res = client.post("/api/logs/ingest", json={"logs": ["d | e | f | g"]})
     data = res.json()["processed_logs"][0]
     assert data["inferred_by"] == "heuristic"
@@ -229,3 +242,24 @@ def test_18_llm_testing(mock_post):
     res = client.post("/api/logs/ingest", json={"logs": ["h | i | j | k | l"]})
     data = res.json()["processed_logs"][0]
     assert data["inferred_by"] == "heuristic"
+
+def test_19_ncsa_combined_log():
+    log = '192.168.1.100 - john [19/Sep/2026:13:24:00 +0000] "GET /index.html HTTP/1.1" 200 4321 "https://google.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"'
+    res = client.post("/api/logs/ingest", json={"logs": [log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    
+    assert data["format"] == "NCSA Combined / Web Access Log"
+    norm = data["normalized"]
+    assert norm["timestamp"] == "2026-09-19T13:24:00Z"
+    assert norm["source"] == "192.168.1.100"
+    assert norm["event_type"] == "http_request"
+    assert norm["severity"] == "info"
+    assert norm["message"] == "GET /index.html HTTP/1.1"
+    assert norm["extra"]["http_status"] == 200
+    assert norm["extra"]["user"] == "john"
+    assert norm["extra"]["bytes_sent"] == 4321
+    assert norm["extra"]["referer"] == "https://google.com"
+    assert norm["extra"]["http_method"] == "GET"
+    assert norm["extra"]["http_path"] == "/index.html"
+
