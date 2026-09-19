@@ -1,3 +1,4 @@
+import os
 import time
 import json
 import logging
@@ -9,7 +10,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, StringConstraints
 from typing import List
 from typing_extensions import Annotated
-from pipeline.format_detector import DiscoveryEngine
+from pipeline.format_detector import DiscoveryEngine, DEFAULT_MODEL
 from pipeline.parser import UniversalParser
 from pipeline.normalizer import Normalizer
 
@@ -22,6 +23,13 @@ if static_dir.exists():
 @app.get("/")
 def read_index():
     return FileResponse(str(static_dir / "index.html"))
+
+@app.get("/api/health")
+def health():
+    return {
+        "llm_configured": bool(os.environ.get("GEMINI_API_KEY")),
+        "model": os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)
+    }
 
 discovery_engine = DiscoveryEngine()
 parser = UniversalParser()
