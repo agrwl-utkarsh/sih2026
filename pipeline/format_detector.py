@@ -7,16 +7,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.6-flash"
 DEFAULT_ANTHROPIC_MODEL = "claude-3-5-haiku-20241022"
 
-SUPPORTED_GEMINI_25_MODELS = {
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
-    "gemini-2.5-flash-lite",
-    "gemini-2.5-flash-preview-05-20",
-    "gemini-2.5-pro-preview-05-06",
-    "gemini-2.5-flash-lite-preview-06-17",
+SUPPORTED_GEMINI_3_MODELS = {
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3-flash-preview",
+    "gemini-3.1-pro-preview",
 }
 
 SYSTEM_PROMPT = (
@@ -49,24 +48,24 @@ def _resolve_gemini_model(raw_model: str = "") -> str:
     m = raw_model.strip()
     low = m.lower()
 
-    if "3.6" in low or "3.5" in low or low.startswith("gemini-3"):
+    if low.startswith("gemini-3"):
+        if low == "gemini-3":
+            return DEFAULT_MODEL
+        if low in SUPPORTED_GEMINI_3_MODELS:
+            return low
+        logger.warning("Using Gemini model %r outside known 3.x allowlist", m)
+        return low
+
+    # Gemini 2.5 (and earlier) was deprecated by Google for new API keys
+    # (404 "no longer available to new users"), so migrate to the current default.
+    if low.startswith("gemini"):
         logger.warning(
-            "DISCOVERY_MODEL=%r appears to be legacy Gemini 3.x; auto-migrating to %s",
+            "DISCOVERY_MODEL=%r is a deprecated Gemini 2.x model; auto-migrating to %s",
             raw_model,
             DEFAULT_MODEL,
         )
         return DEFAULT_MODEL
 
-    if low == "gemini-2.5":
-        return "gemini-2.5-flash"
-
-    if low in SUPPORTED_GEMINI_25_MODELS or low.startswith("gemini-2.5-"):
-        return low
-
-    if not low.startswith("gemini-"):
-        return m
-
-    logger.warning("Using Gemini model %r outside known 2.5 allowlist", m)
     return m
 
 
@@ -144,10 +143,11 @@ class DiscoveryEngine:
             "responseMimeType": "application/json",
             "maxOutputTokens": 256,
         }
-        # Disable dynamic thinking for Gemini 2.5/3 to minimize latency, avoid token budget exhaustion,
-        # and prevent candidate parts from being flooded with thought tokens.
-        if "2.5" in model or "3" in model:
-            gen_config["thinkingConfig"] = {"thinkingBudget": 128 if "pro" in model.lower() else 0}
+        # Gemini 3.x replaced the token-count thinkingBudget with thinkingLevel.
+        # 'low' keeps latency and cost minimal for this small JSON classification
+        # call while still allowing light reasoning.
+        if model.lower().startswith("gemini-3"):
+            gen_config["thinkingConfig"] = {"thinkingLevel": "low"}
 
         payload = {
             "systemInstruction": {
@@ -202,7 +202,7 @@ class DiscoveryEngine:
             finish_reason = candidates[0].get("finishReason", "UNKNOWN")
             return None, f"Gemini empty content (finishReason: {finish_reason})"
 
-        # Locate non-thought text part (Gemini 2.5 can return thoughts in parts)
+        # Locate non-thought text part (Gemini 2.5/3.x can return thoughts in parts)
         text = None
         for p in reversed(parts):
             if isinstance(p, dict) and not p.get("thought", False):
