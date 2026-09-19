@@ -38,6 +38,7 @@ def buffer_lines(lines: List[str]) -> List[str]:
     current_entry = []
     
     json_depth = 0
+    in_string = False
     in_traceback = False
     exc_pattern = re.compile(r'^[A-Za-z_][\w.]*(Error|Exception|Exit|Interrupt|Warning)\b')
     
@@ -70,16 +71,26 @@ def buffer_lines(lines: List[str]) -> List[str]:
                 buffered.append('\n'.join(current_entry))
             current_entry = [line]
             json_depth = 0
+            in_string = False
             in_traceback = False
             
         # Update state for next line based on the current line being added
-        # Count { and } to guess depth
-        if "{" in line or "}" in line:
-            # basic tracking
-            # a real tracking would avoid counting inside strings
-            # we will just do a simple count for the demo
-            json_depth += line.count("{") - line.count("}")
-            if json_depth < 0: json_depth = 0
+        i = 0
+        while i < len(line):
+            c = line[i]
+            if in_string:
+                if c == '\\': i += 1
+                elif c == '"': in_string = False
+            else:
+                if c == '"': in_string = True
+                elif c == '{': json_depth += 1
+                elif c == '}': json_depth -= 1
+            i += 1
+            
+        if json_depth < 0: json_depth = 0
+        if in_string:
+            json_depth = 0
+            in_string = False
             
         if "Traceback (most recent call last):" in line:
             in_traceback = True

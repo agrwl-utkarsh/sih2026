@@ -134,6 +134,7 @@ class UniversalParser:
                 if iso:
                     remainder = line[len(matched_str):].lstrip(' -:,|')
                     was_syslog = (i == 3)
+                    remainder = line[len(matched_str):].lstrip(' -:,|')
                     return iso, was_syslog, remainder
                     
         tokens = line.split()
@@ -145,6 +146,7 @@ class UniversalParser:
                 if iso:
                     remainder = line[len(candidate):].lstrip(' -:,|')
                     was_syslog = bool(re.search(r'^[A-Z][a-z]{2}\s+\d{1,2}', clean_cand))
+                    remainder = line[len(matched_str):].lstrip(' -:,|')
                     return iso, was_syslog, remainder
         return None, False, line
 
@@ -288,3 +290,4 @@ class UniversalParser:
             
         result["parsed_fields"]["raw_message"] = log_entry
         return result
+
