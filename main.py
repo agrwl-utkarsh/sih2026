@@ -24,19 +24,33 @@ if static_dir.exists():
 def read_index():
     return FileResponse(str(static_dir / "index.html"))
 
-@app.get("/api/health")
-def health():
-    from pipeline.format_detector import _resolve_gemini_model
-    raw_model = os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)
-    return {
-        "llm_configured": bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")),
-        "model": _resolve_gemini_model(raw_model),
-        "raw_model": raw_model,
-    }
-
 discovery_engine = DiscoveryEngine()
 parser = UniversalParser()
 normalizer = Normalizer()
+
+@app.get("/api/health")
+def health(check_live: bool = False):
+    from pipeline.format_detector import _resolve_gemini_model, _resolve_anthropic_model
+    raw_model = os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)
+    has_gemini = bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
+    has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    active_provider = "gemini" if has_gemini else ("anthropic" if has_anthropic else None)
+    resolved_model = _resolve_gemini_model(raw_model) if active_provider != "anthropic" else _resolve_anthropic_model()
+
+    resp = {
+        "status": "healthy",
+        "llm_configured": bool(has_gemini or has_anthropic),
+        "provider": active_provider,
+        "model": resolved_model,
+        "raw_model": raw_model,
+    }
+    if check_live:
+        resp["live_check"] = discovery_engine.check_llm()
+    return resp
+
+@app.get("/api/health/llm")
+def health_llm():
+    return discovery_engine.check_llm()
 
 class LogBatch(BaseModel):
     logs: Annotated[List[Annotated[str, StringConstraints(max_length=10000)]], Field(max_length=1000)]

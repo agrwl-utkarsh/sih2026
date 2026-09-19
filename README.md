@@ -34,15 +34,18 @@ All logs are mapped to the following normalized JSON schema:
 
 ## API Endpoints
 
-- **`GET /`**: Serves the frontend UI.
+- **`GET /`**: Serves the frontend UI with live LLM status indicator.
 - **`POST /api/logs/ingest`**: Main ingestion endpoint. Accepts `{"logs": ["log1", "log2", ...]}`. Returns parsed and normalized logs. Each result includes `mode` (`Cached`/`Discovery`), `inferred_by` (`llm`/`heuristic`), and `llm_error` — the verdict shown on a heuristic fallback, e.g. a missing API key or the provider's HTTP error, so LLM failures are never silent.
 - **`GET /api/logs/cache`**: Exposes the active cache rules for inspection.
+- **`GET /api/health`**: Pipeline health check returning active LLM configuration and model info. Pass `?check_live=true` for active connectivity test.
+- **`GET /api/health/llm`**: Dedicated LLM diagnostic endpoint testing provider connection and latency.
 
 ## Environment Variables
 
-- `GEMINI_API_KEY`: Opt-in. If set, format discovery can leverage Google Gemini 2.5 for format discovery. `GOOGLE_API_KEY` is also accepted as an alias.
-- `ANTHROPIC_API_KEY`: Opt-in. If set, format discovery falls back to the Anthropic LLM API for format discovery.
-- `DISCOVERY_MODEL`: The LLM model to use (default: `gemini-2.5-flash`). Supported Gemini 2.5 variants: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-lite` and preview versions. Legacy `gemini-3.6-flash` / `gemini-3.5-*` values are auto-migrated to `gemini-2.5-flash`. For Anthropic, default is `claude-haiku-4-5-20251001`.
+- `GEMINI_API_KEY`: Opt-in. If set, format discovery uses Google Gemini (default: `gemini-2.5-flash`). `GOOGLE_API_KEY` is also accepted as an alias. Thinking mode is automatically set to `thinkingBudget: 0` for sub-second JSON latency.
+- `ANTHROPIC_API_KEY`: Opt-in. If set, format discovery can leverage Anthropic Claude (default: `claude-3-5-haiku-20241022`).
+- `DISCOVERY_MODEL`: The LLM model to use (default: `gemini-2.5-flash`). Supported Gemini 2.5 variants: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-lite` and preview versions. Legacy `gemini-3.6-flash` / `gemini-3.5-*` values are auto-migrated to `gemini-2.5-flash`.
+- `ANTHROPIC_MODEL`: Specific Anthropic model when using Claude (default: `claude-3-5-haiku-20241022`).
 - `DEMO_DISCOVERY_DELAY_MS`: Optional artificial delay for demonstration purposes (e.g., `500`).
 
 ## Supported Formats & Universal Detection
@@ -83,3 +86,9 @@ This script will start the FastAPI backend and send a representative sample of S
 ```bash
 pytest tests/ -v
 ```
+
+### Check LLM API Status
+```bash
+python check_llm.py
+```
+This utility inspects environment variables, verifies the active provider and model, and executes an active connectivity test.
