@@ -8,10 +8,28 @@ import sys
 API_URL = "http://127.0.0.1:8000"
 
 SAMPLE_LOGS = [
-    # Syslog
+    # Syslog RFC 3164
     "Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8",
-    # JSON
+    # Modern RFC 5424 Syslog
+    "<165>1 2026-09-19T14:32:10.003Z mymachine.example.com evntslog 1234 ID47 - An application event log entry",
+    # JSON (Structured)
     '{"timestamp": "2026-09-13T10:00:00Z", "level": "error", "message": "Database connection failed", "host": "db-server-01"}',
+    # Java / Spring Boot
+    "2026-09-19 14:32:10.123 [main] INFO org.springframework.boot.Startup - Started Application in 2.5s",
+    # Python Standard Logger
+    "INFO:root:Connected to database successfully",
+    # Kubernetes / CRI Container Log
+    "2026-09-19T14:32:10.123456789Z stdout F Starting web server on :8080",
+    # Nginx Web Server Error Log
+    '2026/09/19 14:32:10 [error] 1234#0: *1 open() "/favicon.ico" failed, client: 192.168.1.10',
+    # CEF (ArcSight / Firewall)
+    "CEF:0|SecurityCompany|Firewall|1.0|100|Packet dropped|5|src=10.0.0.1 dst=10.0.0.2 spt=1234 dpt=80",
+    # Logfmt / Key-Value
+    'ts=2026-09-19T14:32:10.123Z level=error caller=main.go:42 msg="crash detected" err="null pointer" thread_id=9',
+    # Unstructured Auth Failure
+    "Failed password for invalid user admin from 192.168.1.105 port 54321 ssh2",
+    # Web Access (Combined Log)
+    '192.168.1.100 - john [19/Sep/2026:13:24:00 +0000] "GET /index.html HTTP/1.1" 200 4321 "https://google.com" "Mozilla/5.0"',
     # CSV
     "2026-09-13T10:15:30Z,ERROR,Connection reset by peer,app-server-02,pid=992",
     # Pipe-delimited

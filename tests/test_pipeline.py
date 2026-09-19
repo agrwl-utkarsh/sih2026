@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 import datetime
+import json
 from unittest.mock import patch, MagicMock
 
 from main import app, parser, normalizer
@@ -272,5 +273,137 @@ def test_20_date_fallback_without_timestamp():
     assert "2026-01-15" in data["timestamp"] or "2025-01-15" in data["timestamp"]
     assert data["source"] == "myhost"
     assert data["extra"]["program"] == "myapp"
+
+def test_21_spring_boot_and_java_log4j():
+    log = "2026-09-19 14:32:10.123 [main] INFO org.springframework.boot.Startup - Started Application in 2.5s"
+    res = client.post("/api/logs/ingest", json={"logs": [log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert "Java Application" in data["format"]
+    norm = data["normalized"]
+    assert norm["timestamp"] == "2026-09-19T14:32:10.123000Z"
+    assert norm["severity"] == "info"
+    assert norm["source"] == "org.springframework.boot.Startup"
+    assert norm["message"] == "Started Application in 2.5s"
+    assert norm["extra"]["thread"] == "main"
+
+def test_22_python_logger():
+    log = "INFO:root:Connected to database successfully"
+    res = client.post("/api/logs/ingest", json={"logs": [log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["format"] == "Python Standard Logger"
+    norm = data["normalized"]
+    assert norm["severity"] == "info"
+    assert norm["source"] == "root"
+    assert norm["message"] == "Connected to database successfully"
+
+def test_23_kubernetes_cri():
+    log = "2026-09-19T14:32:10.123456789Z stdout F Starting web server on :8080"
+    res = client.post("/api/logs/ingest", json={"logs": [log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["format"] == "Kubernetes / CRI Container Log"
+    norm = data["normalized"]
+    assert norm["timestamp"] == "2026-09-19T14:32:10.123456Z"
+    assert norm["severity"] == "info"
+    assert norm["message"] == "Starting web server on :8080"
+    assert norm["extra"]["stream"] == "stdout"
+    assert norm["extra"]["cri_flag"] == "F"
+
+def test_24_nginx_error_log():
+    log = '2026/09/19 14:32:10 [error] 1234#0: *1 open() "/favicon.ico" failed, client: 192.168.1.10'
+    res = client.post("/api/logs/ingest", json={"logs": [log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["format"] == "Nginx / Web Server Error Log"
+    norm = data["normalized"]
+    assert norm["timestamp"] == "2026-09-19T14:32:10Z"
+    assert norm["severity"] == "error"
+    assert norm["source"] == "nginx"
+    assert norm["message"] == 'open() "/favicon.ico" failed'
+    assert norm["extra"]["client"] == "192.168.1.10"
+    assert norm["extra"]["pid"] == "1234#0"
+
+def test_25_rfc_5424_syslog():
+    log = "<165>1 2026-09-19T14:32:10.003Z mymachine.example.com evntslog 1234 ID47 - An application event log entry"
+    res = client.post("/api/logs/ingest", json={"logs": [log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["format"] == "RFC 5424 Syslog"
+    norm = data["normalized"]
+    assert norm["timestamp"] == "2026-09-19T14:32:10.003000Z"
+    assert norm["severity"] == "info"
+    assert norm["source"] == "mymachine.example.com"
+    assert norm["event_type"] == "ID47"
+    assert norm["message"] == "An application event log entry"
+    assert norm["extra"]["program"] == "evntslog"
+    assert norm["extra"]["pid"] == "1234"
+
+def test_26_cef_firewall():
+    log = "CEF:0|SecurityCompany|Firewall|1.0|100|Packet dropped|5|src=10.0.0.1 dst=10.0.0.2 spt=1234 dpt=80"
+    res = client.post("/api/logs/ingest", json={"logs": [log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["format"] == "CEF (Common Event Format)"
+    norm = data["normalized"]
+    assert norm["source"] == "SecurityCompany Firewall"
+    assert norm["event_type"] == "100"
+    assert norm["message"] == "Packet dropped"
+    assert norm["extra"]["src"] == "10.0.0.1"
+    assert norm["extra"]["dst"] == "10.0.0.2"
+    assert norm["extra"]["spt"] == "1234"
+    assert norm["extra"]["dpt"] == "80"
+
+def test_27_logfmt_key_value():
+    log = 'ts=2026-09-19T14:32:10.123Z level=error caller=main.go:42 msg="crash detected" err="null pointer" thread_id=9'
+    res = client.post("/api/logs/ingest", json={"logs": [log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["format"] == "Logfmt / Key-Value Stream"
+    norm = data["normalized"]
+    assert norm["timestamp"] == "2026-09-19T14:32:10.123000Z"
+    assert norm["severity"] == "error"
+    assert norm["source"] == "main.go:42"
+    assert norm["message"] == "crash detected"
+    assert norm["extra"]["err"] == "null pointer"
+    assert norm["extra"]["thread_id"] == "9"
+
+def test_28_docker_wrapped_json():
+    inner = '2026-09-19 14:32:10.123 [main] INFO org.demo.App - Server ready'
+    log = json.dumps({"log": inner + "\n", "stream": "stdout", "time": "2026-09-19T14:32:10.500Z"})
+    res = client.post("/api/logs/ingest", json={"logs": [log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["format"] == "JSON Object"
+    norm = data["normalized"]
+    assert norm["timestamp"] == "2026-09-19T14:32:10.123000Z"
+    assert norm["severity"] == "info"
+    assert norm["source"] == "org.demo.App"
+    assert norm["message"] == "Server ready"
+    assert norm["extra"]["stream"] == "stdout"
+
+def test_29_ansi_color_stripping():
+    log = "\x1b[32m2026-09-19 14:32:10.123 [main] INFO org.demo.App - Colorized message\x1b[0m"
+    res = client.post("/api/logs/ingest", json={"logs": [log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    norm = data["normalized"]
+    assert norm["severity"] == "info"
+    assert norm["message"] == "Colorized message"
+
+def test_30_auth_failure_entity_extraction():
+    log = "Failed password for invalid user admin from 192.168.1.105 port 54321 ssh2"
+    res = client.post("/api/logs/ingest", json={"logs": [log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    norm = data["normalized"]
+    assert norm["event_type"] == "auth_failure"
+    assert norm["severity"] == "warning"
+    assert norm["source"] == "192.168.1.105"
+    assert norm["extra"]["ip"] == "192.168.1.105"
+    assert norm["extra"]["port"] == "54321"
+    assert norm["extra"]["user"] == "admin"
+
 
 

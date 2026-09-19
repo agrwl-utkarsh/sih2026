@@ -1,10 +1,12 @@
 import json
 import re
-import warnings
 import threading
 import csv
 import io
 from .timeutil import parse_timestamp
+
+def strip_ansi(s: str) -> str:
+    return re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', s)
 
 class UniversalParser:
     def __init__(self):
@@ -14,9 +16,9 @@ class UniversalParser:
         
         self.ts_patterns = [
             r'^\[?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\]?',
-            r'^\[?\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?\]?',
+            r'^\[?\d{4}[/-]\d{2}[/-]\d{2}\s+\d{2}:\d{2}:\d{2}(?:[.,]\d+)?\]?',
             r'^\[?\d{2,4}/\d{2}/\d{2,4}\s+\d{2}:\d{2}:\d{2}\]?',
-            r'^\[?[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\]?',
+            r'^\[?[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?\]?',
             r'^\[?\d{4}-\d{2}-\d{2}\b\]?',
             r'^\[?\d{10,13}\b\]?'
         ]
@@ -56,14 +58,14 @@ class UniversalParser:
         return False
 
     def fingerprint(self, log_entry: str) -> dict:
-        s = log_entry.strip()
+        s = strip_ansi(log_entry).strip()
         is_json = False
         if s.startswith('{') and s.endswith('}'):
             try: 
                 parsed = json.loads(s)
                 if isinstance(parsed, dict):
                     is_json = True
-            except: 
+            except Exception: 
                 pass
                 
         tok_count = len(s.split())
@@ -73,13 +75,28 @@ class UniversalParser:
         bracket_count = s.count('[') + s.count('(')
         
         delim = None
-        if not is_json:
+        is_security_format = s.startswith("CEF:") or s.startswith("LEEF:")
+        if not is_json and not is_security_format:
             if pipe_count >= 2:
                 delim = "|"
             elif comma_count >= 3:
                 first_field = s.split(',', 1)[0]
                 if tok_count == 1 or self.looks_like_ts_or_sev(first_field):
                     delim = ","
+
+        fmt_type = "generic"
+        if is_json: fmt_type = "json"
+        elif s.startswith("CEF:"): fmt_type = "cef"
+        elif s.startswith("LEEF:"): fmt_type = "leef"
+        elif re.search(r'\[[\w:/]+\s+[+\-]\d{4}\]\s+"[^"]+"\s+\d{3}', s): fmt_type = "ncsa"
+        elif re.match(r'^<(\d{1,3})>(\d+)\s+', s): fmt_type = "rfc5424"
+        elif re.match(r'^(?:<\d{1,3}>)?[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+[a-zA-Z0-9_.-]+\s+[a-zA-Z0-9_./-]+(?:\[\d+\])?:\s*', s): fmt_type = "rfc3164"
+        elif re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})\s+(?:stdout|stderr)\s+[FP]\s+', s): fmt_type = "cri"
+        elif re.match(r'^\d{4}[/-]\d{2}[/-]\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[[a-z]+\]\s+\d+#\d+:', s): fmt_type = "nginx_err"
+        elif re.match(r'^[A-Z]{3,8}:[a-zA-Z0-9_.]+:', s): fmt_type = "python"
+        elif re.search(r'\[main\]\s+(?:[A-Z]{3,8}\s+)?[a-zA-Z0-9_.$]+', s) or re.match(r'^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3}\s+\d+\s+---\s+\[', s): fmt_type = "java"
+        elif eq_count >= 3 and '[' not in s and '(' not in s and re.search(r'=\S+', s): fmt_type = "logfmt"
+        elif delim is not None: fmt_type = f"delim_{delim}"
                     
         return {
             "is_json": is_json,
@@ -88,7 +105,8 @@ class UniversalParser:
             "comma_count": comma_count,
             "eq_count": eq_count,
             "bracket_count": bracket_count,
-            "delim": delim
+            "delim": delim,
+            "fmt_type": fmt_type
         }
 
     def find_cached_rule(self, features: dict):
@@ -112,6 +130,10 @@ class UniversalParser:
                     if rule.get("method") == "json":
                         return fp_str, rule
                     continue
+
+                if "fmt_type" in cached_feat and "fmt_type" in features:
+                    if cached_feat["fmt_type"] != features["fmt_type"]:
+                        continue
                     
                 if cached_feat.get("delim") != features["delim"]:
                     continue
@@ -158,18 +180,285 @@ class UniversalParser:
                     return iso, was_syslog, remainder
         return None, False, line
 
-    def parse_compositional(self, log_entry: str) -> dict:
-        result = {"parsed_fields": {}, "extra": {}}
-        rem = log_entry.strip()
+    # --- Specialized Format Parsers ---
+
+    def _parse_cef(self, s: str) -> dict | None:
+        m = re.match(r'^CEF:\s*(\d+)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|(.*)$', s)
+        if not m:
+            return None
+        cef_ver, vendor, product, dev_ver, class_id, name, sev, ext = m.groups()
+        res = {"parsed_fields": {}, "extra": {}}
+        res["parsed_fields"]["source"] = f"{vendor} {product}".strip() if vendor or product else "unknown"
+        res["parsed_fields"]["message"] = name
+        res["parsed_fields"]["event_type"] = class_id or "security_event"
+        res["parsed_fields"]["severity"] = sev
+        res["extra"]["cef_version"] = cef_ver
+        if vendor: res["extra"]["device_vendor"] = vendor
+        if product: res["extra"]["device_product"] = product
+        if dev_ver: res["extra"]["device_version"] = dev_ver
+        if class_id: res["extra"]["event_class_id"] = class_id
         
+        kv_pairs = re.findall(r'(\w+)=((?:\\=|[^=])*)(?:\s+|$)', ext)
+        for k, v in kv_pairs:
+            res["extra"][k.strip()] = v.strip().replace(r'\=', '=')
+        return res
+
+    def _parse_leef(self, s: str) -> dict | None:
+        m = re.match(r'^LEEF:\s*(\d+(?:\.\d+)?)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|(.*)$', s)
+        if not m:
+            return None
+        leef_ver, vendor, product, dev_ver, event_id, ext = m.groups()
+        res = {"parsed_fields": {}, "extra": {}}
+        res["parsed_fields"]["source"] = f"{vendor} {product}".strip() if vendor or product else "unknown"
+        res["parsed_fields"]["event_type"] = event_id or "security_event"
+        res["extra"]["leef_version"] = leef_ver
+        res["extra"]["device_vendor"] = vendor
+        res["extra"]["device_product"] = product
+        
+        delim = '\t' if '\t' in ext else r'\s+'
+        kv_pairs = re.findall(r'(\w+)=((?:\\=|[^=])*)(?:' + delim + r'|$)', ext)
+        for k, v in kv_pairs:
+            res["extra"][k.strip()] = v.strip().replace(r'\=', '=')
+        return res
+
+    def _parse_rfc5424(self, s: str) -> dict | None:
+        m = re.match(r'^<(\d{1,3})>(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)(?:\s+(.*))?$', s)
+        if not m:
+            return None
+        pri_str, ver, ts, host, app, procid, msgid, rest = m.groups()
+        res = {"parsed_fields": {}, "extra": {}}
+        val = int(pri_str)
+        sev_num = val & 7
+        sevs = {0:"CRITICAL", 1:"CRITICAL", 2:"CRITICAL", 3:"ERROR", 4:"WARNING", 5:"INFO", 6:"INFO", 7:"DEBUG"}
+        res["parsed_fields"]["severity"] = sevs.get(sev_num, "UNKNOWN")
+        res["extra"]["facility"] = val >> 3
+        res["extra"]["syslog_version"] = int(ver)
+        
+        iso = parse_timestamp(ts)
+        if iso:
+            res["parsed_fields"]["timestamp"] = iso
+        if host and host != "-":
+            res["parsed_fields"]["source"] = host
+        if app and app != "-":
+            res["extra"]["program"] = app
+        if procid and procid != "-":
+            res["extra"]["pid"] = procid
+        if msgid and msgid != "-":
+            res["parsed_fields"]["event_type"] = msgid
+            
+        if rest:
+            sd_match = re.match(r'^(\[[^\]]+\])\s*(.*)$', rest)
+            if sd_match:
+                res["extra"]["structured_data"] = sd_match.group(1)
+                msg_clean = sd_match.group(2).lstrip('- ').strip()
+            else:
+                msg_clean = rest.lstrip('- ').strip()
+            res["parsed_fields"]["message"] = msg_clean
+        return res
+
+    def _parse_cri(self, s: str) -> dict | None:
+        m = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2}))\s+(stdout|stderr)\s+([FP])\s+(.*)$', s)
+        if not m:
+            return None
+        ts, stream, flag, inner_msg = m.groups()
+        res = {"parsed_fields": {}, "extra": {}}
+        iso = parse_timestamp(ts)
+        if iso:
+            res["parsed_fields"]["timestamp"] = iso
+        res["extra"]["stream"] = stream
+        res["extra"]["cri_flag"] = flag
+        res["parsed_fields"]["severity"] = "ERROR" if stream == "stderr" else "INFO"
+        
+        inner_trimmed = inner_msg.strip()
+        if inner_trimmed.startswith('{') and inner_trimmed.endswith('}'):
+            try:
+                inner_json = json.loads(inner_trimmed)
+                if isinstance(inner_json, dict):
+                    res["parsed_fields"].update(inner_json)
+                    return res
+            except Exception:
+                pass
+                
+        inner_parsed = self.parse_compositional(inner_trimmed)
+        for k, v in inner_parsed["parsed_fields"].items():
+            if k == "timestamp" and res["parsed_fields"].get("timestamp"):
+                continue
+            res["parsed_fields"][k] = v
+        for k, v in inner_parsed["extra"].items():
+            res["extra"][k] = v
+        if not res["parsed_fields"].get("message"):
+            res["parsed_fields"]["message"] = inner_trimmed
+        return res
+
+    def _parse_nginx_error(self, s: str) -> dict | None:
+        m = re.match(r'^(\d{4}[/-]\d{2}[/-]\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[([a-z]+)\]\s+(\d+#\d+):\s+(?:\*(\d+)\s+)?(.*)$', s)
+        if not m:
+            return None
+        ts, sev, pid, cid, msg_part = m.groups()
+        res = {"parsed_fields": {}, "extra": {}}
+        iso = parse_timestamp(ts)
+        if iso: res["parsed_fields"]["timestamp"] = iso
+        res["parsed_fields"]["severity"] = sev.upper()
+        res["extra"]["pid"] = pid
+        if cid: res["extra"]["connection_id"] = cid
+        res["parsed_fields"]["source"] = "nginx"
+        res["parsed_fields"]["event_type"] = "web_error"
+        
+        main_msg = msg_part
+        trailer_match = re.search(r',\s*(client:\s*[^,]+.*)$', msg_part)
+        if trailer_match:
+            main_msg = msg_part[:trailer_match.start()].strip()
+            trailer_str = trailer_match.group(1)
+            for pair in re.split(r',\s*', trailer_str):
+                if ':' in pair:
+                    k, v = pair.split(':', 1)
+                    res["extra"][k.strip()] = v.strip().strip('"')
+        res["parsed_fields"]["message"] = main_msg
+        return res
+
+    def _parse_spring_boot(self, s: str) -> dict | None:
+        m = re.match(r'^(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3})\s+([A-Z]{3,8})\s+(\d+)\s+---\s+\[([^\]]+)\]\s+([a-zA-Z0-9_.$]+)\s*:\s*(.*)$', s)
+        if not m:
+            return None
+        ts, sev, pid, thread, logger, msg = m.groups()
+        res = {"parsed_fields": {}, "extra": {}}
+        iso = parse_timestamp(ts)
+        if iso: res["parsed_fields"]["timestamp"] = iso
+        res["parsed_fields"]["severity"] = sev
+        res["parsed_fields"]["source"] = logger
+        res["parsed_fields"]["message"] = msg.strip()
+        res["extra"]["pid"] = pid
+        res["extra"]["thread"] = thread.strip()
+        return res
+
+    def _parse_java_log(self, s: str) -> dict | None:
+        p1 = re.compile(
+            r'^(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3})\s+(?:\[([^\]]+)\]\s+)?([A-Z]{3,8})\s+(?:\[([a-zA-Z0-9_.$]+)\]|\(([a-zA-Z0-9_.$]+)\)|([a-zA-Z0-9_.$]+))\s*(?:\(([a-zA-Z0-9_.$]+)\)\s*|\[([a-zA-Z0-9_.$]+)\]\s*)?(?:[-:]\s+)?(.*)$'
+        )
+        m = p1.match(s)
+        if m:
+            ts, thread1, sev, l_b1, l_p1, l_raw, extra_p, extra_b, msg = m.groups()
+            res = {"parsed_fields": {}, "extra": {}}
+            iso = parse_timestamp(ts)
+            if iso: res["parsed_fields"]["timestamp"] = iso
+            res["parsed_fields"]["severity"] = sev
+            logger = l_b1 or l_p1 or l_raw
+            if logger and len(logger) > 2:
+                res["parsed_fields"]["source"] = logger
+            thread = thread1 or extra_p or extra_b
+            if thread: res["extra"]["thread"] = thread
+            res["parsed_fields"]["message"] = msg.strip()
+            return res
+            
+        p2 = re.compile(
+            r'^\[?([A-Z]{3,8})\]?\s+(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3})\s+(?:\[([^\]]+)\]\s+)?([a-zA-Z0-9_.$]+(?:\.[a-zA-Z0-9_$]+)*)\s*(?:-+|:)\s*(.*)$'
+        )
+        m2 = p2.match(s)
+        if m2:
+            sev, ts, thread, logger, msg = m2.groups()
+            res = {"parsed_fields": {}, "extra": {}}
+            iso = parse_timestamp(ts)
+            if iso: res["parsed_fields"]["timestamp"] = iso
+            res["parsed_fields"]["severity"] = sev
+            if logger: res["parsed_fields"]["source"] = logger
+            if thread: res["extra"]["thread"] = thread
+            res["parsed_fields"]["message"] = msg.strip()
+            return res
+        return None
+
+    def _parse_python_log(self, s: str) -> dict | None:
+        m1 = re.match(r'^([A-Z]{3,8}):([a-zA-Z0-9_.]+):(.*)$', s)
+        if m1 and m1.group(1).upper() in self.severity_words:
+            sev, logger, msg = m1.groups()
+            return {
+                "parsed_fields": {
+                    "severity": sev.upper(),
+                    "source": logger,
+                    "message": msg.strip()
+                },
+                "extra": {}
+            }
+            
+        m2 = re.match(r'^(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3})\s*-\s*([a-zA-Z0-9_.]+)\s*-\s*([A-Z]{3,8})\s*-\s*(.*)$', s)
+        if m2:
+            ts, logger, sev, msg = m2.groups()
+            iso = parse_timestamp(ts)
+            res = {"parsed_fields": {"severity": sev.upper(), "source": logger, "message": msg.strip()}, "extra": {}}
+            if iso: res["parsed_fields"]["timestamp"] = iso
+            return res
+            
+        m3 = re.match(r'^\[(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3})\]\s*\{([^}]+)\}\s*([A-Z]{3,8})\s*-\s*(.*)$', s)
+        if m3:
+            ts, caller, sev, msg = m3.groups()
+            iso = parse_timestamp(ts)
+            res = {"parsed_fields": {"severity": sev.upper(), "source": caller, "message": msg.strip()}, "extra": {"caller": caller}}
+            if iso: res["parsed_fields"]["timestamp"] = iso
+            return res
+        return None
+
+    def _parse_postgres(self, s: str) -> dict | None:
+        p_pg = re.compile(
+            r'^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s+[A-Z]{3,4})?)\s+\[(\d+)\]\s+(?:([a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+)\s+)?([A-Z]{3,8}):\s+(.*)$'
+        )
+        m = p_pg.match(s)
+        if not m:
+            return None
+        ts, pid, user_db, sev, msg = m.groups()
+        res = {"parsed_fields": {}, "extra": {}}
+        iso = parse_timestamp(ts)
+        if iso: res["parsed_fields"]["timestamp"] = iso
+        res["parsed_fields"]["severity"] = sev
+        res["parsed_fields"]["source"] = "postgres"
+        res["parsed_fields"]["message"] = msg.strip()
+        res["extra"]["pid"] = pid
+        if user_db:
+            res["extra"]["user_database"] = user_db
+        return res
+
+    def _parse_logfmt(self, s: str) -> dict | None:
+        if '(' in s or '[' in s:
+            return None
+        kv_pattern = re.compile(r'([a-zA-Z0-9_.-]+)=(?:\"([^\"]*)\"|\'([^\']*)\'|([^ \t\n\r,;\]\}>\)&]+))')
+        matches = kv_pattern.findall(s)
+        if len(matches) < 3:
+            return None
+            
+        total_kv_len = sum(len(m[0]) + 1 + len(m[1] or m[2] or m[3]) for m in matches)
+        if total_kv_len < len(s) * 0.45:
+            return None
+            
+        res = {"parsed_fields": {}, "extra": {}}
+        for k, v1, v2, v3 in matches:
+            val = v1 if v1 != "" else (v2 if v2 != "" else v3)
+            k_low = k.lower()
+            if k_low in ("ts", "time", "timestamp", "datetime", "date") and "timestamp" not in res["parsed_fields"]:
+                iso = parse_timestamp(val)
+                if iso:
+                    res["parsed_fields"]["timestamp"] = iso
+                    continue
+            if k_low in ("level", "lvl", "severity") and "severity" not in res["parsed_fields"]:
+                res["parsed_fields"]["severity"] = val.upper()
+                continue
+            if k_low in ("msg", "message") and "message" not in res["parsed_fields"]:
+                res["parsed_fields"]["message"] = val
+                continue
+            if k_low in ("caller", "service", "host", "logger", "app") and "source" not in res["parsed_fields"]:
+                res["parsed_fields"]["source"] = val
+                continue
+            res["extra"][k] = val
+        return res
+
+    def parse_compositional(self, log_entry: str) -> dict:
+        rem = strip_ansi(log_entry).strip()
+
         # Check Combined / Common Log Format (NCSA / Apache / Nginx)
-        # e.g.: 192.168.1.100 - john [19/Sep/2026:13:24:00 +0000] "GET /index.html HTTP/1.1" 200 4321 "https://google.com" "Mozilla/5.0..."
         combined_match = re.match(
             r'^(\S+)\s+(\S+)\s+(\S+)\s+\[([\w:/]+\s+[+\-]\d{4})\]\s+"([^"]+)"\s+(\d{3})\s+(\S+)(?:\s+"([^"]*)"\s+"([^"]*)")?',
             rem
         )
         if combined_match:
             ip, ident, user, raw_ts, request, status, size, referer, agent = combined_match.groups()
+            result = {"parsed_fields": {}, "extra": {}}
             result["parsed_fields"]["source"] = ip
             ts_iso = parse_timestamp(raw_ts)
             if ts_iso:
@@ -177,7 +466,6 @@ class UniversalParser:
             result["parsed_fields"]["message"] = request
             result["parsed_fields"]["event_type"] = "http_request"
             
-            # Map HTTP status to canonical severity
             try:
                 status_int = int(status)
                 result["extra"]["http_status"] = status_int
@@ -190,16 +478,11 @@ class UniversalParser:
             except ValueError:
                 pass
                 
-            if ident and ident != "-":
-                result["extra"]["ident"] = ident
-            if user and user != "-":
-                result["extra"]["user"] = user
-            if size and size != "-":
-                result["extra"]["bytes_sent"] = int(size) if size.isdigit() else size
-            if referer and referer != "-":
-                result["extra"]["referer"] = referer
-            if agent and agent != "-":
-                result["extra"]["user_agent"] = agent
+            if ident and ident != "-": result["extra"]["ident"] = ident
+            if user and user != "-": result["extra"]["user"] = user
+            if size and size != "-": result["extra"]["bytes_sent"] = int(size) if size.isdigit() else size
+            if referer and referer != "-": result["extra"]["referer"] = referer
+            if agent and agent != "-": result["extra"]["user_agent"] = agent
                 
             req_tokens = request.split()
             if len(req_tokens) >= 2:
@@ -207,10 +490,29 @@ class UniversalParser:
                 result["extra"]["http_path"] = req_tokens[1]
                 if len(req_tokens) >= 3:
                     result["extra"]["http_proto"] = req_tokens[2]
-                    
             return result
 
-        # 0. Syslog prefix
+        # Try specialized format parsers
+        for parser_fn in [
+            self._parse_cef,
+            self._parse_leef,
+            self._parse_rfc5424,
+            self._parse_cri,
+            self._parse_nginx_error,
+            self._parse_spring_boot,
+            self._parse_java_log,
+            self._parse_python_log,
+            self._parse_postgres,
+            self._parse_logfmt
+        ]:
+            special_res = parser_fn(rem)
+            if special_res:
+                return special_res
+
+        # Master Fallback: Compositional Zone Extraction
+        result = {"parsed_fields": {}, "extra": {}}
+        
+        # 0. Syslog priority prefix <PRI>
         match = re.search(r'^<(\d{1,3})>', rem)
         if match:
             matched_str = match.group(0)
@@ -221,12 +523,12 @@ class UniversalParser:
             result["parsed_fields"]["severity"] = sevs.get(sev_num, "UNKNOWN")
             result["extra"]["facility"] = val >> 3
 
-        # 1. Timestamp
+        # 1. Timestamp Detection (leading or bracketed)
         ts_iso, was_syslog, rem = self.detect_timestamp(rem)
         if ts_iso: 
             result["parsed_fields"]["timestamp"] = ts_iso
             
-        # 2. Severity
+        # 2. Leading Severity
         if "severity" not in result["parsed_fields"]:
             match = self.sev_pattern.search(rem)
             if match and match.start() == 0:
@@ -236,7 +538,7 @@ class UniversalParser:
                 
         # 3. Syslog host/program
         if ts_iso and was_syslog:
-            host_match = re.match(r'^([a-zA-Z0-9_-]+)\s+([a-zA-Z0-9_-]+)(?:\[(\d+)\])?:\s*', rem)
+            host_match = re.match(r'^([a-zA-Z0-9_-]+)\s+([a-zA-Z0-9_.-]+)(?:\[(\d+)\])?:\s*', rem)
             if host_match:
                 result["parsed_fields"]["source"] = host_match.group(1)
                 result["extra"]["program"] = host_match.group(2)
@@ -244,7 +546,7 @@ class UniversalParser:
                     result["extra"]["pid"] = host_match.group(3)
                 rem = rem[len(host_match.group(0)):]
                 
-        # 4. Context brackets
+        # 4. Context brackets [thread] or (process)
         match = re.search(r'^\[([^\]]+)\]|^\(([^)]+)\)', rem)
         if match:
             matched_str = match.group(0)
@@ -259,13 +561,45 @@ class UniversalParser:
                     rem = rem[len(sev_str):].lstrip(' -:,|')
                     result["parsed_fields"]["severity"] = sev_match.group(1).upper()
 
-        # 5. Message
+        # 5. Check for trailing JSON payload
+        m_json = re.search(r'(\{.*\}|\[.*\])\s*$', rem)
+        if m_json:
+            try:
+                parsed_json = json.loads(m_json.group(1))
+                if isinstance(parsed_json, dict):
+                    result["extra"]["json_payload"] = parsed_json
+                    rem = rem[:m_json.start()].rstrip(' -:,|')
+            except Exception:
+                pass
+
+        # 6. Message
         if rem: 
             result["parsed_fields"]["message"] = rem.strip()
+
+        # 7. Entity Recognition: IPs, Ports, Users
+        full_text = log_entry
+        ip_match = re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', full_text)
+        if ip_match:
+            ip_val = ip_match.group(0)
+            result["extra"]["ip"] = ip_val
+            if "source" not in result["parsed_fields"]:
+                result["parsed_fields"]["source"] = ip_val
+
+        port_match = re.search(r'\bport\s*[:=]?\s*(\d{2,5})\b', full_text, re.I)
+        if not port_match and ip_match:
+            port_match = re.search(rf"{re.escape(ip_match.group(0))}:(\d{{2,5}})\b", full_text)
+        if port_match:
+            result["extra"]["port"] = port_match.group(1)
+
+        user_match = re.search(r'(?:for\s+(?:invalid\s+user\s+)?|user[\s=:]+)([a-zA-Z0-9_.-]+)', full_text, re.I)
+        if user_match:
+            user_val = user_match.group(1)
+            if user_val.lower() not in ("invalid", "authentication", "to", "the", "a", "an"):
+                result["extra"]["user"] = user_val
             
-        # 6. KV scan
+        # 8. KV scan
         kv_pattern = re.compile(r'([a-zA-Z0-9_-]+)=("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'|[^ \t\n\r,;\]\}>\)&]+)')
-        for k, v in kv_pattern.findall(log_entry):
+        for k, v in kv_pattern.findall(full_text):
             if v.startswith('"') and v.endswith('"'): v = v[1:-1]
             elif v.startswith("'") and v.endswith("'"): v = v[1:-1]
             result["extra"][k] = v
@@ -275,24 +609,44 @@ class UniversalParser:
     def parse_with_rule(self, log_entry: str, rule: dict) -> dict:
         result = {"parsed_fields": {}, "extra": {}}
         method = rule.get("method")
+        clean_entry = strip_ansi(log_entry).strip()
         
         if method == "json":
             try:
-                parsed = json.loads(log_entry)
+                parsed = json.loads(clean_entry)
                 if isinstance(parsed, dict):
+                    # Check for Docker container wrapper: {"log": "...", "stream": "stdout", "time": "..."}
+                    if "log" in parsed and isinstance(parsed["log"], str) and ("stream" in parsed or "time" in parsed):
+                        inner = parsed["log"].strip()
+                        inner_parsed = self.parse_compositional(inner)
+                        result["parsed_fields"] = inner_parsed.get("parsed_fields", {})
+                        result["extra"] = inner_parsed.get("extra", {})
+                        for k, v in parsed.items():
+                            if k != "log":
+                                result["extra"][k] = v
+                        return result
+                    
+                    # MongoDB style format: {"t": {"$date": "..."}, "s": "I", "c": "NETWORK", "msg": "..."}
+                    if "t" in parsed and isinstance(parsed["t"], dict) and "$date" in parsed["t"]:
+                        parsed["timestamp"] = parsed.pop("t")["$date"]
+                    if "s" in parsed and "severity" not in parsed:
+                        parsed["severity"] = parsed.pop("s")
+                    if "c" in parsed and "source" not in parsed:
+                        parsed["source"] = parsed.pop("c")
+                        
                     result["parsed_fields"] = parsed
                     return result
-            except:
+            except Exception:
                 pass
             method = "compositional"
             
         if method == "delimiter":
             delim = rule.get("delimiter")
             try:
-                reader = csv.reader(io.StringIO(log_entry.strip()), delimiter=delim)
+                reader = csv.reader(io.StringIO(clean_entry), delimiter=delim)
                 parts = next(reader)
-            except:
-                parts = [p.strip() for p in log_entry.split(delim)]
+            except Exception:
+                parts = [p.strip() for p in clean_entry.split(delim)]
                 
             parts = [p.strip() for p in parts if p.strip()]
             
@@ -342,8 +696,7 @@ class UniversalParser:
             return result
 
         if method == "compositional":
-            return self.parse_compositional(log_entry)
+            return self.parse_compositional(clean_entry)
             
-        result["parsed_fields"]["raw_message"] = log_entry
+        result["parsed_fields"]["raw_message"] = clean_entry
         return result
-
