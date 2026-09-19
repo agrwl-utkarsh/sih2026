@@ -2,6 +2,7 @@ import json
 import re
 import dateutil.parser
 import warnings
+import datetime
 
 class UniversalParser:
     def __init__(self):
@@ -73,7 +74,6 @@ class UniversalParser:
                 try:
                     # handle epoch
                     if matched_str.isdigit():
-                        import datetime
                         ts = int(matched_str)
                         if len(matched_str) == 13: ts = ts / 1000.0
                         iso = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).isoformat()

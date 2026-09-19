@@ -37,10 +37,10 @@ def main():
         else:
             print(f"Error {response.status_code}: {response.text}")
 
-        print("\n--- Fetching Learned Templates (Drain3) ---")
-        template_response = requests.get(f"{API_URL}/api/logs/templates")
+        print("\n--- Fetching Cache Inspector ---")
+        template_response = requests.get(f"{API_URL}/api/logs/cache")
         if template_response.status_code == 200:
-            print("\nExtracted Templates:")
+            print("\nExtracted Cache:")
             print(json.dumps(template_response.json(), indent=2))
             
     finally:

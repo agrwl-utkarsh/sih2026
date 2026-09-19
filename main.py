@@ -3,6 +3,7 @@ import json
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+import os
 from pydantic import BaseModel
 from typing import List
 from pipeline.format_detector import LLMDiscoveryEngine
@@ -12,11 +13,12 @@ from pipeline.normalizer import Normalizer
 app = FastAPI(title="Format-Agnostic Two-Tier Log Pipeline (SIH26)")
 
 # Mount the static directory for the frontend
-app.mount("/static", StaticFiles(directory="static"), name="static")
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.get("/")
 async def read_index():
-    return FileResponse("static/index.html")
+    return FileResponse(os.path.join(static_dir, "index.html"))
 
 discovery_engine = LLMDiscoveryEngine()
 parser = UniversalParser()
