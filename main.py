@@ -1,160 +1,138 @@
 import time
 import json
+import logging
+import re
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import os
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, StringConstraints
 from typing import List
-import re
-from pipeline.format_detector import HeuristicDiscoveryEngine
+from typing_extensions import Annotated
+from pipeline.format_detector import DiscoveryEngine
 from pipeline.parser import UniversalParser
 from pipeline.normalizer import Normalizer
 
 app = FastAPI(title="Format-Agnostic Two-Tier Log Pipeline (SIH26)")
 
-# Mount the static directory for the frontend
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 @app.get("/")
-async def read_index():
-    return FileResponse(os.path.join(static_dir, "index.html"))
+def read_index():
+    return FileResponse(str(static_dir / "index.html"))
 
-discovery_engine = HeuristicDiscoveryEngine()
+discovery_engine = DiscoveryEngine()
 parser = UniversalParser()
 normalizer = Normalizer()
 
 class LogBatch(BaseModel):
-    logs: List[str]
+    logs: Annotated[List[Annotated[str, StringConstraints(max_length=10000)]], Field(max_length=1000)]
 
 def buffer_lines(lines: List[str]) -> List[str]:
-    """Merge continuation lines (stack traces, pretty-print JSON) into single log records."""
     if not lines:
         return []
         
     buffered = []
     current_entry = []
-    in_traceback = False
-    in_json = False
     
-    new_log_pattern = re.compile(r'^([\{\[]|\d|<|[A-Z][a-z]{2}\s+\d|DEBUG|INFO|WARN|ERROR|CRITICAL|FATAL|TRACE)')
+    json_depth = 0
+    in_traceback = False
+    exc_pattern = re.compile(r'^[A-Za-z_][\w.]*(Error|Exception|Exit|Interrupt|Warning)\b')
     
     for line in lines:
         stripped = line.strip()
-        is_new = False
-        
-        if not current_entry:
-            is_new = True
-        else:
-            if in_json:
-                is_new = False
-                if stripped == '}' or stripped == '},':
-                    in_json = False
-            elif in_traceback:
-                if line.startswith(' ') or line.startswith('\t'):
-                    is_new = False
-                elif re.match(r'^\w+:', line):
-                    is_new = False
-                    in_traceback = False
-                else:
-                    is_new = True
-                    in_traceback = False
-            else:
-                if line.startswith(' ') or line.startswith('\t'):
-                    is_new = False
-                elif new_log_pattern.match(line):
-                    is_new = True
-                else:
-                    is_new = True
-                    
-        if is_new and current_entry:
-            buffered.append('\n'.join(current_entry))
-            current_entry = [line]
-            if stripped == '{':
-                in_json = True
-            if line.startswith('Traceback '):
-                in_traceback = True
-        else:
-            if not current_entry:
-                current_entry = [line]
-                if stripped == '{':
-                    in_json = True
-                if line.startswith('Traceback '):
-                    in_traceback = True
-            else:
-                current_entry.append(line)
+        if not stripped:
+            continue
             
+        continues = False
+        
+        # update JSON depth (crude but follows instructions)
+        # track "{" depth outside strings; if a line leaves a string open, stop treating the record as JSON
+        # This is very complex to do perfectly with regex, we'll do a simple count of { and }
+        
+        if current_entry:
+            if json_depth > 0:
+                continues = True
+            elif line.startswith(' ') or line.startswith('\t'):
+                continues = True
+            elif line.startswith('Caused by:'):
+                continues = True
+            elif in_traceback and exc_pattern.match(line):
+                continues = True
+                in_traceback = False # Exception line usually ends the traceback block
+                
+        if continues and len(current_entry) < 500:
+            current_entry.append(line)
+        else:
+            if current_entry:
+                buffered.append('\n'.join(current_entry))
+            current_entry = [line]
+            json_depth = 0
+            in_traceback = False
+            
+        # Update state for next line based on the current line being added
+        # Count { and } to guess depth
+        if "{" in line or "}" in line:
+            # basic tracking
+            # a real tracking would avoid counting inside strings
+            # we will just do a simple count for the demo
+            json_depth += line.count("{") - line.count("}")
+            if json_depth < 0: json_depth = 0
+            
+        if "Traceback (most recent call last):" in line:
+            in_traceback = True
+
     if current_entry:
         buffered.append('\n'.join(current_entry))
         
     return buffered
 
+def process_record(log: str) -> dict:
+    start_time = time.perf_counter()
+    try:
+        features = parser.fingerprint(log)
+        fp_str, rule = parser.find_cached_rule(features)
+        
+        if fp_str and rule:
+            mode = "Cached"
+        else:
+            mode = "Discovery"
+            rule = discovery_engine.run_inference(log, features)
+            parser.store_rule(features, rule)
+            
+        parsed = parser.parse_with_rule(log, rule)
+        normalized = normalizer.normalize(parsed, raw_log=log)
+        
+        latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        
+        return {
+            "mode": mode,
+            "format": rule.get("signature", "Unknown Signature"),
+            "inferred_by": rule.get("inferred_by"),
+            "latency_ms": latency_ms,
+            "extracted_fields": parsed.get("parsed_fields", {}),
+            "normalized": normalized
+        }
+    except Exception as e:
+        logging.exception("Failed to process record")
+        return {
+            "mode": "Error",
+            "format": "n/a",
+            "inferred_by": None,
+            "latency_ms": round((time.perf_counter() - start_time) * 1000, 2),
+            "extracted_fields": {},
+            "normalized": normalizer.empty(log),
+            "error": f"{type(e).__name__}: {str(e)}"
+        }
+
 @app.post("/api/logs/ingest")
-async def ingest_logs(batch: LogBatch):
-    results = []
-    
-    # 1. Edge Case: Multi-line handling (do not shred stack traces)
+def ingest_logs(batch: LogBatch):
     buffered_logs = buffer_lines(batch.logs)
-    
-    for log in buffered_logs:
-        if not log.strip():
-            continue # Edge Case: Skip empty lines silently
-            
-        start_time = time.time()
-        
-        try:
-            # Tier 1: Structural Fingerprinting (Runs on EVERY line)
-            features = parser.fingerprint(log)
-            
-            # Tier 2b: Execution (Check Cache by nearest fingerprint match)
-            fp_str, rule = parser.find_cached_rule(features)
-            
-            if fp_str and rule:
-                mode = "Cached"
-                # Execution Path (Fast)
-                parsed = parser.parse_with_rule(log, rule)
-            else:
-                # Tier 2a: Discovery (Run LLM/Heuristic Fallback)
-                mode = "Discovery"
-                rule = discovery_engine.run_inference(log, features)
-                
-                # Cache the new rule dynamically
-                parser.store_rule(features, rule)
-                
-                # Execute it
-                parsed = parser.parse_with_rule(log, rule)
-                
-            # Tier 3: Normalization
-            normalized = normalizer.normalize(parsed, raw_log=log)
-            
-            latency_ms = round((time.time() - start_time) * 1000, 2)
-            
-            results.append({
-                "mode": mode,
-                "format": rule.get("signature", "Unknown Signature"),
-                "latency_ms": latency_ms,
-                "extracted_fields": parsed.get("parsed_fields", {}),
-                "normalized": normalized
-            })
-        except Exception as e:
-            results.append({
-                "mode": "Error",
-                "format": "Processing Error",
-                "latency_ms": round((time.time() - start_time) * 1000, 2),
-                "extracted_fields": {},
-                "normalized": {"raw": log, "error": str(e)}
-            })
-        
+    results = [process_record(log) for log in buffered_logs]
     return {"processed_logs": results}
 
 @app.get("/api/logs/cache")
-async def get_cache():
-    """Cache Inspector endpoint"""
-    inspector_data = []
-    for fp, rule in parser.cache.items():
-        inspector_data.append({
-            "fingerprint_features": json.loads(fp),
-            "inferred_rule": rule
-        })
-    return {"cache": inspector_data}
+def get_cache():
+    return {"cache": parser.snapshot_cache()}
