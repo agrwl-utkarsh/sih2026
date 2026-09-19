@@ -7,10 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshCacheBtn = document.getElementById('refresh-cache-btn');
     const template = document.getElementById('result-card-template');
 
-    // Handle dropdown selection
     sampleSelect.addEventListener('change', (e) => {
         if (e.target.value) {
-            // Append if there's already text, otherwise replace
             if (logInput.value.trim()) {
                 logInput.value = logInput.value.trim() + '\n' + e.target.value;
             } else {
@@ -22,19 +20,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshCache = async () => {
         try {
             const res = await fetch('/api/logs/cache');
+            if (!res.ok) {
+                const data = await res.json();
+                cacheOutput.textContent = `Error fetching cache: ${JSON.stringify(data.detail || data)}`;
+                return;
+            }
             const data = await res.json();
-            if (data.cache.length === 0) {
+            if (data.cache && data.cache.length === 0) {
                 cacheOutput.textContent = 'Cache is currently empty.';
             } else {
                 cacheOutput.textContent = JSON.stringify(data.cache, null, 2);
             }
         } catch(e) {
             console.error('Failed to fetch cache', e);
+            cacheOutput.textContent = 'Network error fetching cache.';
         }
     };
     
     refreshCacheBtn.addEventListener('click', refreshCache);
-    refreshCache(); // initial load
+    refreshCache();
 
     processBtn.addEventListener('click', async () => {
         const rawText = logInput.value.trim();
@@ -46,10 +50,10 @@ document.addEventListener('DOMContentLoaded', () => {
         processBtn.textContent = 'Running Pipeline...';
         processBtn.disabled = true;
         
-        resultsContainer.innerHTML = ''; // Clear previous runs
+        resultsContainer.textContent = ''; 
         
         try {
-            const logs = rawText.split('\n'); // Send all lines
+            const logs = rawText.split('\n');
 
             const response = await fetch('/api/logs/ingest', {
                 method: 'POST',
@@ -57,7 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ logs })
             });
 
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(JSON.stringify(data.detail || data));
+            }
             const data = await response.json();
             
             data.processed_logs.forEach(result => {
@@ -70,44 +77,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fieldsBody = clone.querySelector('.fields-body');
                 const logOutput = clone.querySelector('.log-output');
 
-                valMode.textContent = result.mode;
                 valFormat.textContent = result.format;
                 valLatency.textContent = `${result.latency_ms} ms`;
                 
-                // Highlight caching difference
                 if (result.mode === 'Cached') {
                     modeCard.classList.add('mode-cached');
                     valMode.textContent = 'Cached (Fast Path)';
-                } else {
+                } else if (result.mode === 'Discovery') {
                     modeCard.classList.add('mode-discovery');
-                    valMode.textContent = 'Discovery (Heuristic)';
+                    const by = result.inferred_by === 'llm' ? 'LLM' : 'Heuristic';
+                    valMode.textContent = `Discovery (${by})`;
+                } else if (result.mode === 'Error') {
+                    modeCard.classList.add('mode-error');
+                    valMode.textContent = 'Error';
                 }
 
-                // Populate Extracted Fields Table
-                const allFields = { ...result.extracted_fields, ...result.normalized.extra };
-                for (const [key, value] of Object.entries(allFields)) {
-                    if (key === 'raw_message' || value == null || value === '') continue;
+                // Populate Fields Table without innerHTML
+                fieldsBody.textContent = '';
+                
+                if (result.mode === 'Error' && result.error) {
                     const tr = document.createElement('tr');
                     const tdKey = document.createElement('td');
-                    tdKey.textContent = key;
+                    tdKey.textContent = 'error';
                     const tdVal = document.createElement('td');
-                    tdVal.textContent = value;
+                    tdVal.textContent = result.error;
                     tr.appendChild(tdKey);
                     tr.appendChild(tdVal);
                     fieldsBody.appendChild(tr);
+                } else {
+                    const allFields = { ...result.extracted_fields, ...result.normalized.extra };
+                    for (const [key, value] of Object.entries(allFields)) {
+                        if (key === 'raw_message' || value == null || value === '') continue;
+                        const tr = document.createElement('tr');
+                        const tdKey = document.createElement('td');
+                        tdKey.textContent = key;
+                        const tdVal = document.createElement('td');
+                        tdVal.textContent = typeof value === 'object' ? JSON.stringify(value) : value;
+                        tr.appendChild(tdKey);
+                        tr.appendChild(tdVal);
+                        fieldsBody.appendChild(tr);
+                    }
                 }
                 
                 if (fieldsBody.children.length === 0) {
-                    fieldsBody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:#94a3b8">No fields extracted (Unstructured fallback)</td></tr>';
+                    const tr = document.createElement('tr');
+                    const td = document.createElement('td');
+                    td.setAttribute('colspan', '2');
+                    td.style.textAlign = 'center';
+                    td.style.color = '#94a3b8';
+                    td.textContent = 'No fields extracted (Unstructured fallback)';
+                    tr.appendChild(td);
+                    fieldsBody.appendChild(tr);
                 }
 
-                // Populate Normalized JSON
                 logOutput.textContent = JSON.stringify(result.normalized, null, 2);
-                
                 resultsContainer.appendChild(clone);
             });
             
-            // Auto refresh cache inspector
             await refreshCache();
 
         } catch (error) {
