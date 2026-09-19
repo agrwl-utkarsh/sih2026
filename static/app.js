@@ -14,16 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    const clearBtn = document.getElementById('clear-btn');
-    if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
-            logInput.value = '';
-            sampleSelect.value = '';
-            resultsContainer.textContent = '';
-            logInput.focus();
-        });
-    }
-
     const refreshCache = async () => {
         try {
             const res = await fetch('/api/logs/cache');
