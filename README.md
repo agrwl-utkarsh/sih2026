@@ -40,9 +40,9 @@ All logs are mapped to the following normalized JSON schema:
 
 ## Environment Variables
 
-- `GEMINI_API_KEY`: Opt-in. If set, format discovery can leverage Google Gemini for format discovery.
+- `GEMINI_API_KEY`: Opt-in. If set, format discovery can leverage Google Gemini 2.5 for format discovery. `GOOGLE_API_KEY` is also accepted as an alias.
 - `ANTHROPIC_API_KEY`: Opt-in. If set, format discovery falls back to the Anthropic LLM API for format discovery.
-- `DISCOVERY_MODEL`: The LLM model to use (default: `gemini-3.6-flash` or `claude-haiku-4-5-20251001`).
+- `DISCOVERY_MODEL`: The LLM model to use (default: `gemini-2.5-flash`). Supported Gemini 2.5 variants: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-lite` and preview versions. Legacy `gemini-3.6-flash` / `gemini-3.5-*` values are auto-migrated to `gemini-2.5-flash`. For Anthropic, default is `claude-haiku-4-5-20251001`.
 - `DEMO_DISCOVERY_DELAY_MS`: Optional artificial delay for demonstration purposes (e.g., `500`).
 
 ## Supported Formats & Universal Detection

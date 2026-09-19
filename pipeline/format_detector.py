@@ -7,7 +7,61 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "gemini-3.6-flash"
+DEFAULT_MODEL = "gemini-2.5-flash"
+
+# Known good Gemini 2.5 model IDs (stable + preview)
+SUPPORTED_GEMINI_25_MODELS = {
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash-preview-05-20",
+    "gemini-2.5-pro-preview-05-06",
+    "gemini-2.5-flash-lite-preview-06-17",
+}
+
+
+def _resolve_gemini_model(raw_model: str) -> str:
+    """
+    Normalize user-provided model to a valid Gemini 2.5 model.
+
+    - Maps legacy 3.x names (e.g. gemini-3.6-flash, gemini-3.5-flash) to DEFAULT_MODEL
+    - Handles shorthand like 'gemini-2.5' -> 'gemini-2.5-flash'
+    - Allows any gemini-2.5-* variant to pass through
+    """
+    if not raw_model:
+        return DEFAULT_MODEL
+    m = raw_model.strip()
+    low = m.lower()
+
+    # Legacy 3.x family doesn't exist - auto-migrate to 2.5-flash
+    if "3.6" in low or "3.5" in low or low.startswith("gemini-3"):
+        logger.warning(
+            "DISCOVERY_MODEL=%r appears to be a non-existent Gemini 3.x model; auto-migrating to %s",
+            raw_model,
+            DEFAULT_MODEL,
+        )
+        return DEFAULT_MODEL
+
+    # Shorthand
+    if low == "gemini-2.5":
+        return "gemini-2.5-flash"
+
+    if low in SUPPORTED_GEMINI_25_MODELS:
+        return low
+
+    # Allow any other gemini-2.5-* variant to pass through
+    if low.startswith("gemini-2.5-"):
+        return low
+
+    # For non-gemini models or custom names, return as-is
+    if not low.startswith("gemini-"):
+        return m
+
+    # Unknown gemini-* but not 2.5 - still try to use it, but warn
+    logger.warning(
+        "Using Gemini model %r which is not in known 2.5 allowlist; ensure it exists", m
+    )
+    return m
 
 class DiscoveryEngine:
     def __init__(self):
@@ -15,7 +69,12 @@ class DiscoveryEngine:
         self._log_key_status()
 
     def _log_key_status(self):
-        current_state = "yes" if (os.environ.get("GEMINI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")) else "no"
+        has_key = bool(
+            os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("GOOGLE_API_KEY")
+            or os.environ.get("ANTHROPIC_API_KEY")
+        )
+        current_state = "yes" if has_key else "no"
         if self._last_logged_key_state != current_state:
             logger.info("LLM API KEY configured: %s", current_state)
             self._last_logged_key_state = current_state
@@ -31,7 +90,7 @@ class DiscoveryEngine:
             time.sleep(delay)
 
         errors = []
-        gemini_key = os.environ.get("GEMINI_API_KEY")
+        gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if gemini_key:
             llm_rule, err = self._call_gemini(log_entry, features, gemini_key)
             if llm_rule:
@@ -55,7 +114,8 @@ class DiscoveryEngine:
         return rule
 
     def _call_gemini(self, log_entry: str, features: dict, api_key: str) -> tuple[dict | None, str | None]:
-        model = os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)
+        raw_model = os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)
+        model = _resolve_gemini_model(raw_model)
         truncated = log_entry[:500]
         
         system_prompt = (

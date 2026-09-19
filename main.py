@@ -26,9 +26,12 @@ def read_index():
 
 @app.get("/api/health")
 def health():
+    from pipeline.format_detector import _resolve_gemini_model
+    raw_model = os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)
     return {
-        "llm_configured": bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")),
-        "model": os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)
+        "llm_configured": bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")),
+        "model": _resolve_gemini_model(raw_model),
+        "raw_model": raw_model,
     }
 
 discovery_engine = DiscoveryEngine()
