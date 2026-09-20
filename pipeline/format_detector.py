@@ -9,6 +9,10 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "gemini-3.6-flash"
 DEFAULT_ANTHROPIC_MODEL = "claude-3-5-haiku-20241022"
+DEFAULT_GROQ_MODEL = "llama-3.1-8b-instant"
+NO_LLM_KEY_MSG = (
+    "No LLM API key configured (set GEMINI_API_KEY, GROQ_API_KEY or ANTHROPIC_API_KEY)"
+)
 
 SUPPORTED_GEMINI_3_MODELS = {
     "gemini-3.6-flash",
@@ -78,15 +82,40 @@ def _resolve_anthropic_model(raw_model: str = "") -> str:
     return m
 
 
+def _resolve_groq_model(raw_model: str = "") -> str:
+    """Normalize model to a Groq chat-completions id."""
+    m = os.environ.get("GROQ_MODEL") or raw_model or ""
+    m = m.strip()
+    if not m or m.lower().startswith("gemini") or m.lower().startswith("claude"):
+        return DEFAULT_GROQ_MODEL
+    return m
+
+
+def _is_permanent_gemini_denial(err: str | None) -> bool:
+    """True when Google has blocked the Cloud/AI Studio project (not a 429)."""
+    if not err:
+        return False
+    low = err.lower()
+    if "403" not in err and "permission_denied" not in low and "permission denied" not in low:
+        return False
+    return (
+        "denied access" in low
+        or "permission_denied" in low
+        or "permission denied" in low
+    )
+
+
 class DiscoveryEngine:
     def __init__(self):
         self._last_logged_key_state = None
+        self._skip_gemini = False
         self._log_key_status()
 
     def _log_key_status(self):
         has_key = bool(
             os.environ.get("GEMINI_API_KEY")
             or os.environ.get("GOOGLE_API_KEY")
+            or os.environ.get("GROQ_API_KEY")
             or os.environ.get("ANTHROPIC_API_KEY")
         )
         current_state = "yes" if has_key else "no"
@@ -106,14 +135,28 @@ class DiscoveryEngine:
 
         errors = []
         gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-        if gemini_key:
+        groq_key = os.environ.get("GROQ_API_KEY")
+        anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+
+        if gemini_key and not self._skip_gemini:
             llm_rule, err = self._call_gemini(log_entry, features, gemini_key)
+            if llm_rule:
+                return llm_rule
+            if err:
+                if _is_permanent_gemini_denial(err):
+                    self._skip_gemini = True
+                    logger.warning(
+                        "Gemini project denied access; skipping Gemini for this instance"
+                    )
+                errors.append(err)
+
+        if groq_key:
+            llm_rule, err = self._call_groq(log_entry, features, groq_key)
             if llm_rule:
                 return llm_rule
             if err:
                 errors.append(err)
 
-        anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
         if anthropic_key:
             llm_rule, err = self._call_anthropic(log_entry, features, anthropic_key)
             if llm_rule:
@@ -123,9 +166,16 @@ class DiscoveryEngine:
 
         rule = self._heuristic_fallback(features, log_entry)
         if errors:
-            rule["llm_error"] = "; ".join(errors)[:300]
-        elif not gemini_key and not anthropic_key:
-            rule["llm_error"] = "No LLM API key configured (set GEMINI_API_KEY or ANTHROPIC_API_KEY)"
+            if self._skip_gemini and not groq_key and not anthropic_key:
+                rule["llm_error"] = (
+                    "Gemini project denied access (HTTP 403). "
+                    "This is a Google account/project block, not a bad Vercel key. "
+                    "Set GROQ_API_KEY for a free working LLM, or keep heuristic mode."
+                )
+            else:
+                rule["llm_error"] = "; ".join(errors)[:300]
+        elif not gemini_key and not groq_key and not anthropic_key:
+            rule["llm_error"] = NO_LLM_KEY_MSG
         return rule
 
     def _call_gemini(self, log_entry: str, features: dict, api_key: str) -> tuple[dict | None, str | None]:
@@ -268,6 +318,62 @@ class DiscoveryEngine:
 
         return self._validate_and_build_rule(text, log_entry, features, provider="Anthropic")
 
+    def _call_groq(self, log_entry: str, features: dict, api_key: str) -> tuple[dict | None, str | None]:
+        model = _resolve_groq_model()
+        truncated = log_entry[:500]
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": model,
+            "temperature": 0,
+            "max_tokens": 256,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": truncated},
+            ],
+        }
+
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=8.0)
+        except Exception as e:
+            err = f"Groq request failed: {type(e).__name__}: {str(e)[:120]}"
+            logger.error("Groq API request failed: %s: %s", type(e).__name__, e)
+            return None, err
+
+        if resp.status_code != 200:
+            err_msg = resp.text[:200]
+            try:
+                err_data = resp.json()
+                if "error" in err_data:
+                    eobj = err_data["error"]
+                    if isinstance(eobj, dict):
+                        err_msg = eobj.get("message") or err_msg
+                    elif isinstance(eobj, str):
+                        err_msg = eobj
+            except Exception:
+                pass
+            err = f"Groq HTTP {resp.status_code}: {err_msg}"
+            logger.error("Groq API returned HTTP %d: %s", resp.status_code, resp.text)
+            return None, err
+
+        try:
+            data = resp.json()
+            choices = data.get("choices") or []
+            text = ""
+            if choices:
+                msg = choices[0].get("message") or {}
+                text = msg.get("content") or ""
+        except Exception as e:
+            err = f"Groq response unparseable: {type(e).__name__}"
+            logger.error("Failed to parse Groq response: %s: %s", type(e).__name__, e)
+            return None, err
+
+        return self._validate_and_build_rule(text, log_entry, features, provider="Groq")
+
     def _validate_and_build_rule(self, text: str, log_entry: str, features: dict, provider: str = "LLM") -> tuple[dict | None, str | None]:
         if not text:
             return None, f"{provider} returned empty response"
@@ -355,47 +461,87 @@ class DiscoveryEngine:
         """
         Actively checks LLM API configuration and tests live connectivity.
         Returns a diagnostic dict with status, provider, model, latency_ms or error.
+        Tries Gemini, then Groq, then Anthropic. A Google project 403 does not
+        block a working Groq/Anthropic key.
         """
         gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        groq_key = os.environ.get("GROQ_API_KEY")
         anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
 
-        if not gemini_key and not anthropic_key:
+        if not gemini_key and not groq_key and not anthropic_key:
             return {
                 "status": "not_configured",
                 "configured": False,
                 "provider": None,
                 "model": _resolve_gemini_model(os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)),
-                "error": "No LLM API key configured (set GEMINI_API_KEY or ANTHROPIC_API_KEY)"
+                "error": NO_LLM_KEY_MSG,
             }
 
-        provider = "gemini" if gemini_key else "anthropic"
-        model = _resolve_gemini_model(os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)) if provider == "gemini" else _resolve_anthropic_model()
         test_log = "192.168.1.1 GET /index.html 200"
-        features = {"is_json": False, "tok_count": 4, "pipe_count": 0, "comma_count": 0, "eq_count": 0, "bracket_count": 0, "delim": None}
+        features = {
+            "is_json": False,
+            "tok_count": 4,
+            "pipe_count": 0,
+            "comma_count": 0,
+            "eq_count": 0,
+            "bracket_count": 0,
+            "delim": None,
+        }
 
-        t0 = time.perf_counter()
-        if provider == "gemini":
-            rule, err = self._call_gemini(test_log, features, gemini_key)
-        else:
-            rule, err = self._call_anthropic(test_log, features, anthropic_key)
-        latency = round((time.perf_counter() - t0) * 1000, 2)
+        attempts = []
+        if gemini_key and not self._skip_gemini:
+            attempts.append("gemini")
+        if groq_key:
+            attempts.append("groq")
+        if anthropic_key:
+            attempts.append("anthropic")
+        if not attempts and gemini_key:
+            attempts.append("gemini")
 
-        if rule:
-            return {
-                "status": "ok",
-                "configured": True,
-                "provider": provider,
-                "model": model,
-                "latency_ms": latency,
-                "test_rule": rule
-            }
+        last_err = None
+        last_provider = None
+        last_model = None
+        last_latency = None
+
+        for provider in attempts:
+            if provider == "gemini":
+                model = _resolve_gemini_model(os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL))
+                t0 = time.perf_counter()
+                rule, err = self._call_gemini(test_log, features, gemini_key)
+            elif provider == "groq":
+                model = _resolve_groq_model()
+                t0 = time.perf_counter()
+                rule, err = self._call_groq(test_log, features, groq_key)
+            else:
+                model = _resolve_anthropic_model()
+                t0 = time.perf_counter()
+                rule, err = self._call_anthropic(test_log, features, anthropic_key)
+            latency = round((time.perf_counter() - t0) * 1000, 2)
+            last_err, last_provider, last_model, last_latency = err, provider, model, latency
+
+            if err and provider == "gemini" and _is_permanent_gemini_denial(err):
+                self._skip_gemini = True
+                logger.warning(
+                    "Gemini project denied access; skipping Gemini for this instance"
+                )
+
+            if rule:
+                return {
+                    "status": "ok",
+                    "configured": True,
+                    "provider": provider,
+                    "model": model,
+                    "latency_ms": latency,
+                    "test_rule": rule,
+                }
+
         return {
             "status": "error",
             "configured": True,
-            "provider": provider,
-            "model": model,
-            "latency_ms": latency,
-            "error": err
+            "provider": last_provider,
+            "model": last_model,
+            "latency_ms": last_latency,
+            "error": last_err,
         }
 
 

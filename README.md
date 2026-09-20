@@ -42,9 +42,11 @@ All logs are mapped to the following normalized JSON schema:
 
 ## Environment Variables
 
-- `GEMINI_API_KEY`: Opt-in. If set, format discovery uses Google Gemini (default: `gemini-3.6-flash`). `GOOGLE_API_KEY` is also accepted as an alias. Thinking is automatically set to `thinkingLevel: "low"` on Gemini 3.x for fast, low-cost JSON classification.
+- `GEMINI_API_KEY`: Opt-in. If set, format discovery tries Google Gemini first (default: `gemini-3.6-flash`). `GOOGLE_API_KEY` is also accepted as an alias. Thinking is automatically set to `thinkingLevel: "low"` on Gemini 3.x. A Google HTTP 403 project-denied is treated as a permanent block for that process: Gemini is skipped and Groq/Anthropic/heuristics take over.
+- `GROQ_API_KEY`: Opt-in. Free Groq Cloud key. Used when Gemini is missing or blocked (default model: `llama-3.1-8b-instant`). Recommended for the demo if Gemini returns 403.
+- `GROQ_MODEL`: Override the Groq model id (default: `llama-3.1-8b-instant`).
 - `ANTHROPIC_API_KEY`: Opt-in. If set, format discovery can leverage Anthropic Claude (default: `claude-3-5-haiku-20241022`).
-- `DISCOVERY_MODEL`: The LLM model to use (default: `gemini-3.6-flash`). Supported Gemini 3.x variants: `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite` and preview versions. Deprecated `gemini-2.5-*` values are auto-migrated to `gemini-3.6-flash` (Google removed the 2.5 family for new API keys).
+- `DISCOVERY_MODEL`: The Gemini model to use (default: `gemini-3.6-flash`). Supported Gemini 3.x variants: `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite` and preview versions. Deprecated `gemini-2.5-*` values are auto-migrated to `gemini-3.6-flash` (Google removed the 2.5 family for new API keys).
 - `ANTHROPIC_MODEL`: Specific Anthropic model when using Claude (default: `claude-3-5-haiku-20241022`).
 - `DEMO_DISCOVERY_DELAY_MS`: Optional artificial delay for demonstration purposes (e.g., `500`).
 

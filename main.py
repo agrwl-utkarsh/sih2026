@@ -10,7 +10,13 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, StringConstraints
 from typing import List
 from typing_extensions import Annotated
-from pipeline.format_detector import DiscoveryEngine, DEFAULT_MODEL
+from pipeline.format_detector import (
+    DiscoveryEngine,
+    DEFAULT_MODEL,
+    _resolve_gemini_model,
+    _resolve_anthropic_model,
+    _resolve_groq_model,
+)
 from pipeline.parser import UniversalParser
 from pipeline.normalizer import Normalizer
 
@@ -30,19 +36,36 @@ normalizer = Normalizer()
 
 @app.get("/api/health")
 def health(check_live: bool = False):
-    from pipeline.format_detector import _resolve_gemini_model, _resolve_anthropic_model
     raw_model = os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)
     has_gemini = bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
+    has_groq = bool(os.environ.get("GROQ_API_KEY"))
     has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    active_provider = "gemini" if has_gemini else ("anthropic" if has_anthropic else None)
-    resolved_model = _resolve_gemini_model(raw_model) if active_provider != "anthropic" else _resolve_anthropic_model()
+    gemini_skipped = bool(getattr(discovery_engine, "_skip_gemini", False))
+
+    if has_gemini and not gemini_skipped:
+        active_provider = "gemini"
+        resolved_model = _resolve_gemini_model(raw_model)
+    elif has_groq:
+        active_provider = "groq"
+        resolved_model = _resolve_groq_model()
+    elif has_anthropic:
+        active_provider = "anthropic"
+        resolved_model = _resolve_anthropic_model()
+    elif has_gemini:
+        active_provider = "gemini"
+        resolved_model = _resolve_gemini_model(raw_model)
+    else:
+        active_provider = None
+        resolved_model = _resolve_gemini_model(raw_model)
 
     resp = {
         "status": "healthy",
-        "llm_configured": bool(has_gemini or has_anthropic),
+        "llm_configured": bool(has_gemini or has_groq or has_anthropic),
         "provider": active_provider,
         "model": resolved_model,
         "raw_model": raw_model,
+        "gemini_skipped": gemini_skipped,
+        "has_groq": has_groq,
     }
     if check_live:
         resp["live_check"] = discovery_engine.check_llm()
