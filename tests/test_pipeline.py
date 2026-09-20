@@ -4,7 +4,7 @@ import datetime
 import json
 from unittest.mock import patch, MagicMock
 
-from main import app, parser, normalizer
+from main import app, parser, normalizer, discovery_engine
 from pipeline.timeutil import parse_timestamp
 
 client = TestClient(app)
@@ -12,6 +12,7 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def clear_cache():
     parser.cache.clear()
+    discovery_engine._skip_gemini = False
 
 def test_1_plain_line_after_json_no_500():
     res = client.post("/api/logs/ingest", json={"logs": ['{"a": 1}', 'hello']})
@@ -441,7 +442,7 @@ def test_32_llm_error_when_no_key_configured():
     data = res.json()["processed_logs"][0]
     assert data["mode"] == "Discovery"
     assert data["inferred_by"] == "heuristic"
-    assert data["llm_error"] == "No LLM API key configured (set GEMINI_API_KEY or ANTHROPIC_API_KEY)"
+    assert data["llm_error"] == "No LLM API key configured (set GEMINI_API_KEY, GROQ_API_KEY or ANTHROPIC_API_KEY)"
 
 
 @patch("pipeline.format_detector.requests.post")
@@ -577,3 +578,88 @@ def test_38_deprecated_discovery_model_migrated_in_request(mock_post):
     sent_payload = call_args.kwargs.get("json", {})
     assert sent_payload["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "low"}
 
+
+
+@patch("pipeline.format_detector.requests.post")
+@patch.dict("os.environ", {"GEMINI_API_KEY": "blocked_key", "GROQ_API_KEY": "gsk_fake"}, clear=True)
+def test_39_groq_used_when_gemini_project_denied(mock_post):
+    def side_effect(url, *args, **kwargs):
+        resp = MagicMock()
+        if "googleapis" in str(url):
+            resp.status_code = 403
+            msg = "Your project has been denied access. Please contact support."
+            resp.text = json.dumps({"error": {"message": msg}})
+            resp.json.return_value = {"error": {"message": msg}}
+            return resp
+        resp.status_code = 200
+        resp.json.return_value = {
+            "choices": [{"message": {"content": '{"method": "delimiter", "delimiter": "|"}'}}]
+        }
+        return resp
+
+    mock_post.side_effect = side_effect
+    unique_log = "gpart1 | gpart2 | gpart3 | gpart4"
+    res = client.post("/api/logs/ingest", json={"logs": [unique_log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["inferred_by"] == "llm"
+    assert data["format"] == "Pipe-Delimited"
+    assert data["llm_error"] is None
+
+    urls = [str(c.args[0]) for c in mock_post.call_args_list]
+    assert any("googleapis" in u for u in urls)
+    assert any("api.groq.com" in u for u in urls)
+
+
+@patch("pipeline.format_detector.requests.post")
+@patch.dict("os.environ", {"GEMINI_API_KEY": "blocked_key"}, clear=True)
+def test_40_gemini_403_denied_skipped_on_next_discovery(mock_post):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 403
+    msg = "Your project has been denied access. Please contact support."
+    mock_resp.text = json.dumps({"error": {"message": msg}})
+    mock_resp.json.return_value = {"error": {"message": msg}}
+    mock_post.return_value = mock_resp
+
+    first = "ZX1 alpha [b1] (c2) k1=v1 k2=v2 k3=v3 k4=v4 tail"
+    second = "INFO:zx2logger:circuit breaker second discovery"
+
+    res1 = client.post("/api/logs/ingest", json={"logs": [first]})
+    data1 = res1.json()["processed_logs"][0]
+    assert data1["mode"] == "Discovery"
+    assert data1["inferred_by"] == "heuristic"
+    assert data1["llm_error"] is not None
+    assert "denied access" in data1["llm_error"].lower() or "GROQ_API_KEY" in data1["llm_error"]
+
+    calls_after_first = mock_post.call_count
+    assert calls_after_first >= 1
+
+    res2 = client.post("/api/logs/ingest", json={"logs": [second]})
+    data2 = res2.json()["processed_logs"][0]
+    assert data2["mode"] == "Discovery"
+    assert data2["inferred_by"] == "heuristic"
+    # Circuit breaker: do not hammer a Google project that already returned 403 denied.
+    assert mock_post.call_count == calls_after_first
+    # Later cards stay clean so the demo is not a wall of 403s.
+    assert data2["llm_error"] is None
+
+
+@patch("pipeline.format_detector.requests.post")
+@patch.dict("os.environ", {"GROQ_API_KEY": "gsk_only"}, clear=True)
+def test_41_groq_only_discovery(mock_post):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "choices": [{"message": {"content": '{"method": "json"}'}}]
+    }
+    mock_post.return_value = mock_resp
+
+    unique_log = '{"svc": "groq-only", "ok": true}'
+    res = client.post("/api/logs/ingest", json={"logs": [unique_log]})
+    assert res.status_code == 200
+    data = res.json()["processed_logs"][0]
+    assert data["inferred_by"] == "llm"
+    assert data["format"] == "JSON Object"
+    assert "api.groq.com" in mock_post.call_args.args[0]
+    sent = mock_post.call_args.kwargs.get("json", {})
+    assert sent.get("model") == "llama-3.1-8b-instant"

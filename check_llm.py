@@ -9,7 +9,7 @@ Usage:
 import os
 import sys
 import json
-from pipeline.format_detector import DiscoveryEngine, _resolve_gemini_model, _resolve_anthropic_model, DEFAULT_MODEL
+from pipeline.format_detector import DiscoveryEngine, DEFAULT_MODEL
 
 def main():
     print("=" * 65)
@@ -17,12 +17,14 @@ def main():
     print("=" * 65)
     
     gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    groq_key = os.environ.get("GROQ_API_KEY")
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
     raw_model = os.environ.get("DISCOVERY_MODEL", DEFAULT_MODEL)
     
     print("\n[1] Environment Configuration:")
     print(f"  • GEMINI_API_KEY:    {'Configured (' + gemini_key[:4] + '...' + gemini_key[-4:] + ')' if gemini_key else 'Not set'}")
     print(f"  • GOOGLE_API_KEY:    {'Configured (' + os.environ['GOOGLE_API_KEY'][:4] + '...)' if 'GOOGLE_API_KEY' in os.environ else 'Not set'}")
+    print(f"  • GROQ_API_KEY:      {'Configured (' + groq_key[:4] + '...' + groq_key[-4:] + ')' if groq_key else 'Not set'}")
     print(f"  • ANTHROPIC_API_KEY: {'Configured (' + anthropic_key[:4] + '...' + anthropic_key[-4:] + ')' if anthropic_key else 'Not set'}")
     print(f"  • DISCOVERY_MODEL:   {raw_model}")
     
@@ -47,6 +49,8 @@ def main():
         print(f"\n⚠️  NOTICE: {diag.get('error')}")
         print("\nPipeline is operating in high-performance HEURISTIC FALLBACK mode.")
         print("To enable LLM-powered discovery:")
+        print("  export GROQ_API_KEY=\"your_groq_api_key\"")
+        print("  or")
         print("  export GEMINI_API_KEY=\"your_gemini_api_key\"")
         print("  or")
         print("  export ANTHROPIC_API_KEY=\"your_anthropic_api_key\"")
