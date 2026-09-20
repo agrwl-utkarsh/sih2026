@@ -9,10 +9,19 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "gemini-3.6-flash"
 DEFAULT_ANTHROPIC_MODEL = "claude-3-5-haiku-20241022"
-DEFAULT_GROQ_MODEL = "llama-3.1-8b-instant"
+# Groq shut down llama-3.1-8b-instant / llama-3.3-70b-versatile on 2026-08-16
+# (404 model_not_found). openai/gpt-oss-20b is Groq's documented replacement.
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
+GROQ_MAX_TOKENS = 512
 NO_LLM_KEY_MSG = (
     "No LLM API key configured (set GEMINI_API_KEY, GROQ_API_KEY or ANTHROPIC_API_KEY)"
 )
+
+# Retired Groq ids that older deployments may still have in GROQ_MODEL.
+RETIRED_GROQ_MODELS = {
+    "llama-3.1-8b-instant",
+    "llama-3.3-70b-versatile",
+}
 
 SUPPORTED_GEMINI_3_MODELS = {
     "gemini-3.6-flash",
@@ -88,7 +97,41 @@ def _resolve_groq_model(raw_model: str = "") -> str:
     m = m.strip()
     if not m or m.lower().startswith("gemini") or m.lower().startswith("claude"):
         return DEFAULT_GROQ_MODEL
+    if m.lower() in RETIRED_GROQ_MODELS:
+        logger.warning(
+            "GROQ_MODEL=%r was retired by Groq; auto-migrating to %s",
+            m,
+            DEFAULT_GROQ_MODEL,
+        )
+        return DEFAULT_GROQ_MODEL
     return m
+
+
+def _is_groq_reasoning_model(model: str) -> bool:
+    """gpt-oss models emit chain-of-thought in message.reasoning."""
+    return "gpt-oss" in model.lower()
+
+
+def _groq_failed_generation(err_data) -> str:
+    """
+    Extract the raw model output Groq attaches to a 400 as
+    error.failed_generation (string, or occasionally an object).
+    Returns "" when it is absent.
+    """
+    if not isinstance(err_data, dict):
+        return ""
+    eobj = err_data.get("error")
+    if not isinstance(eobj, dict):
+        return ""
+    fg = eobj.get("failed_generation")
+    if fg is None:
+        return ""
+    if isinstance(fg, str):
+        return fg
+    try:
+        return json.dumps(fg)
+    except (TypeError, ValueError):
+        return str(fg)
 
 
 def _is_permanent_gemini_denial(err: str | None) -> bool:
@@ -326,16 +369,22 @@ class DiscoveryEngine:
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        # No response_format=json_object here: Groq's JSON mode validates the
+        # raw generation, and gpt-oss (a reasoning model) fails that check with
+        # HTTP 400 json_validate_failed. We parse the JSON ourselves instead.
+        # max_tokens is shared with hidden reasoning tokens, so 256 was too low.
         payload = {
             "model": model,
             "temperature": 0,
-            "max_tokens": 256,
-            "response_format": {"type": "json_object"},
+            "max_tokens": GROQ_MAX_TOKENS,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": truncated},
             ],
         }
+        if _is_groq_reasoning_model(model):
+            # Keep chain-of-thought short so the answer fits in the budget.
+            payload["reasoning_effort"] = "low"
 
         try:
             resp = requests.post(url, headers=headers, json=payload, timeout=8.0)
@@ -346,6 +395,7 @@ class DiscoveryEngine:
 
         if resp.status_code != 200:
             err_msg = resp.text[:200]
+            failed_generation = ""
             try:
                 err_data = resp.json()
                 if "error" in err_data:
@@ -354,10 +404,26 @@ class DiscoveryEngine:
                         err_msg = eobj.get("message") or err_msg
                     elif isinstance(eobj, str):
                         err_msg = eobj
+                failed_generation = _groq_failed_generation(err_data)
             except Exception:
                 pass
             err = f"Groq HTTP {resp.status_code}: {err_msg}"
             logger.error("Groq API returned HTTP %d: %s", resp.status_code, resp.text)
+
+            # Groq 400 json_validate_failed still ships the model's raw output
+            # in error.failed_generation. It is usually a usable answer, so run
+            # it through the same validator before giving up on the LLM.
+            if failed_generation:
+                rule, fg_err = self._validate_and_build_rule(
+                    failed_generation, log_entry, features, provider="Groq"
+                )
+                if rule:
+                    logger.info(
+                        "Recovered valid rule from Groq failed_generation after HTTP %d",
+                        resp.status_code,
+                    )
+                    return rule, None
+                logger.warning("Groq failed_generation not usable: %s", fg_err)
             return None, err
 
         try:
@@ -366,7 +432,22 @@ class DiscoveryEngine:
             text = ""
             if choices:
                 msg = choices[0].get("message") or {}
-                text = msg.get("content") or ""
+                text = (msg.get("content") or "").strip()
+                if not text:
+                    # gpt-oss puts chain-of-thought in message.reasoning; when
+                    # max_tokens is exhausted mid-thought (or the model answers
+                    # inside its reasoning) content is empty but the JSON is
+                    # often still in there.
+                    reasoning = (
+                        msg.get("reasoning")
+                        or msg.get("reasoning_content")
+                        or ""
+                    )
+                    if isinstance(reasoning, str) and reasoning.strip():
+                        logger.info(
+                            "Groq message.content empty; falling back to message.reasoning"
+                        )
+                        text = reasoning.strip()
         except Exception as e:
             err = f"Groq response unparseable: {type(e).__name__}"
             logger.error("Failed to parse Groq response: %s: %s", type(e).__name__, e)
@@ -386,12 +467,22 @@ class DiscoveryEngine:
         try:
             parsed = json.loads(candidate)
         except Exception:
-            match = re.search(r'\{[^{}]*\}', candidate)
-            if match:
+            # Reasoning traces / failed_generation blobs may contain several
+            # brace objects (e.g. the schema restated before the answer).
+            # Prefer the last one that actually carries a "method" key.
+            found = []
+            for match in re.finditer(r'\{[^{}]*\}', candidate):
                 try:
-                    parsed = json.loads(match.group(0))
+                    obj = json.loads(match.group(0))
                 except Exception:
-                    pass
+                    continue
+                if isinstance(obj, dict):
+                    found.append(obj)
+            with_method = [o for o in found if "method" in o]
+            if with_method:
+                parsed = with_method[-1]
+            elif found:
+                parsed = found[0]
 
         if not isinstance(parsed, dict):
             logger.error("Failed to parse %s output as JSON: %r", provider, text[:200])
