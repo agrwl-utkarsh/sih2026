@@ -34,7 +34,7 @@ All logs are mapped to the following normalized JSON schema:
 
 ## API Endpoints
 
-- **`GET /`**: Serves the frontend UI with live LLM status indicator.
+- **`GET /`**: Serves the frontend UI.
 - **`POST /api/logs/ingest`**: Main ingestion endpoint. Accepts `{"logs": ["log1", "log2", ...]}`. Returns parsed and normalized logs. Each result includes `mode` (`Cached`/`Discovery`), `inferred_by` (`llm`/`heuristic`), and `llm_error` — the verdict shown on a heuristic fallback, e.g. a missing API key or the provider's HTTP error, so LLM failures are never silent.
 - **`GET /api/logs/cache`**: Exposes the active cache rules for inspection.
 - **`GET /api/health`**: Pipeline health check returning active LLM configuration and model info. Pass `?check_live=true` for active connectivity test.
