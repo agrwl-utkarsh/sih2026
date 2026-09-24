@@ -1,0 +1,51 @@
+# Provenance: logpai/loghub @GitHub master — Linux/Linux_2k.log_structured.csv (Ritu Woc CC research corpus, Jun 20-22 2005 dataset)
+# Chunks fetched: 3-4 of 41 (2026-09-24, fetch_page tool; sandbox egress blocks direct download)
+# Boundary partial rows dropped. Comment lines (#) are non-data. Subsampled every-2nd within the 23 identical sshd E18 rows (199-221).
+LineId,Month,Date,Time,Host,Component,PID,Content,EventId,EventTemplate
+145,Jun,19,04:09:11,combo,syslogd 1.4.1,,restart.,E90,restart.
+147,Jun,19,04:09:11,combo,logrotate,,ALERT exited abnormally with [1],E8,ALERT exited abnormally with [1]
+148,Jun,19,04:15:18,combo,su(pam_unix),3676,session opened for user news by (uid=0),E102,session opened for user <*> by (uid=<*>)
+149,Jun,19,04:15:18,combo,su(pam_unix),3676,session closed for user news,E101,session closed for user <*>
+150,Jun,20,03:40:59,combo,ftpd,8829,connection from 222.33.90.199 () at Mon Jun 20 03:40:59 2005,E29,connection from <*> (<*>) at <*>:<*>:<*>
+154,Jun,20,03:40:59,combo,ftpd,8833,connection from 222.33.90.199 () at Mon Jun 20 03:40:59 2005,E29,connection from <*> (<*>) at <*>:<*>:<*>
+158,Jun,20,03:40:59,combo,ftpd,8826,connection from 222.33.90.199 () at Mon Jun 20 03:40:59 2005,E29,connection from <*> (<*>) at <*>:<*>:<*>
+162,Jun,20,04:02:54,combo,su(pam_unix),9187,session opened for user cyrus by (uid=0),E102,session opened for user <*> by (uid=<*>)
+163,Jun,20,04:02:54,combo,su(pam_unix),9187,session closed for user cyrus,E101,session closed for user <*>
+164,Jun,20,04:02:55,combo,logrotate,,ALERT exited abnormally with [1],E8,ALERT exited abnormally with [1]
+165,Jun,20,04:08:37,combo,su(pam_unix),9558,session opened for user news by (uid=0),E102,session opened for user <*> by (uid=<*>)
+166,Jun,20,04:08:38,combo,su(pam_unix),9558,session closed for user news,E101,session closed for user <*>
+167,Jun,20,04:44:39,combo,snmpd,2318,Received SNMP packet(s) from 67.170.148.126,E88,Received SNMP packet(s) from <*>
+168,Jun,20,09:20:05,combo,sshd(pam_unix),10035,check pass; user unknown,E27,check pass; user unknown
+169,Jun,20,09:20:05,combo,sshd(pam_unix),10035,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=65.166.159.14,E16,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>
+170,Jun,20,09:20:05,combo,sshd(pam_unix),10037,check pass; user unknown,E27,check pass; user unknown
+173,Jun,20,09:20:06,combo,sshd(pam_unix),10041,check pass; user unknown,E27,check pass; user unknown
+177,Jun,20,09:20:07,combo,sshd(pam_unix),10047,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=65.166.159.14,E16,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>
+184,Jun,20,09:20:08,combo,sshd(pam_unix),10051,check pass; user unknown,E27,check pass; user unknown
+188,Jun,21,04:06:57,combo,su(pam_unix),12098,session opened for user cyrus by (uid=0),E102,session opened for user <*> by (uid=<*>)
+189,Jun,21,04:06:58,combo,su(pam_unix),12098,session closed for user cyrus,E101,session closed for user <*>
+190,Jun,21,04:06:59,combo,logrotate,,ALERT exited abnormally with [1],E8,ALERT exited abnormally with [1]
+191,Jun,21,04:13:03,combo,su(pam_unix),13327,session opened for user news by (uid=0),E102,session opened for user <*> by (uid=<*>)
+192,Jun,21,04:13:04,combo,su(pam_unix),13327,session closed for user news,E101,session closed for user <*>
+193,Jun,21,08:56:36,combo,sshd(pam_unix),14281,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=217.60.212.66  user=guest,E17,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=guest
+196,Jun,21,08:56:36,combo,sshd(pam_unix),14277,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=217.60.212.66  user=guest,E17,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=guest
+199,Jun,22,03:17:26,combo,sshd(pam_unix),16207,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=n219076184117.netvigator.com  user=root,E18,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=root
+201,Jun,22,03:17:35,combo,sshd(pam_unix),16210,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=n219076184117.netvigator.com  user=root,E18,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=root
+203,Jun,22,03:17:36,combo,sshd(pam_unix),16213,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=n219076184117.netvigator.com  user=root,E18,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=root
+205,Jun,22,03:17:45,combo,sshd(pam_unix),16216,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=n219076184117.netvigator.com  user=root,E18,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=root
+207,Jun,22,03:17:52,combo,sshd(pam_unix),16222,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=n219076184117.netvigator.com  user=root,E18,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=root
+209,Jun,22,03:17:56,combo,sshd(pam_unix),16227,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=n219076184117.netvigator.com  user=root,E18,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=root
+211,Jun,22,03:18:02,combo,sshd(pam_unix),16230,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=n219076184117.netvigator.com  user=root,E18,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=root
+213,Jun,22,03:18:06,combo,sshd(pam_unix),16235,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=n219076184117.netvigator.com  user=root,E18,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=root
+215,Jun,22,03:18:10,combo,sshd(pam_unix),16238,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=n219076184117.netvigator.com  user=root,E18,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=root
+217,Jun,22,03:18:15,combo,sshd(pam_unix),16242,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=n219076184117.netvigator.com  user=root,E18,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=root
+219,Jun,22,03:18:16,combo,sshd(pam_unix),16245,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=n219076184117.netvigator.com  user=root,E18,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=root
+221,Jun,22,03:18:22,combo,sshd(pam_unix),16250,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=n219076184117.netvigator.com  user=root,E18,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>  user=root
+222,Jun,22,04:05:58,combo,su(pam_unix),16663,session opened for user cyrus by (uid=0),E102,session opened for user <*> by (uid=<*>)
+223,Jun,22,04:05:59,combo,su(pam_unix),16663,session closed for user cyrus,E101,session closed for user <*>
+224,Jun,22,04:06:00,combo,logrotate,,ALERT exited abnormally with [1],E8,ALERT exited abnormally with [1]
+225,Jun,22,04:11:42,combo,su(pam_unix),17037,session opened for user news by (uid=0),E102,session opened for user <*> by (uid=<*>)
+226,Jun,22,04:11:42,combo,su(pam_unix),17037,session closed for user news,E101,session closed for user <*>
+227,Jun,22,04:30:55,combo,sshd(pam_unix),17129,check pass; user unknown,E27,check pass; user unknown
+228,Jun,22,04:30:55,combo,sshd(pam_unix),17129,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=ip-216-69-169-168.ip.secureserver.net,E16,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>
+231,Jun,22,04:30:55,combo,sshd(pam_unix),17124,check pass; user unknown,E27,check pass; user unknown
+234,Jun,22,04:30:55,combo,sshd(pam_unix),17123,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=ip-216-69-169-168.ip.secureserver.net,E16,authentication failure; logname= uid=0 euid=0 tty=NODEVssh ruser= rhost=<*>

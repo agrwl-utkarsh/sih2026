@@ -108,7 +108,17 @@ class TemplateMinerTier:
         self._kv_seen: set[str] = set()              # templates already pulled from KV
         self._quarantine: OrderedDict[str, dict] = OrderedDict()
         self._pending_graduation: set[str] = set()
+        # Occurrence counts per (line, family) — deliberately INDEPENDENT of the
+        # Drain-keyed quarantine memo so cap eviction or template-ID drift cannot
+        # keep a repeated novel format locked in quarantine forever: after
+        # TPL_Q_GRADUATE_OCCURRENCES sightings the caller escalates it to the
+        # discovery/LLM tier even though it never satisfied graduation volume.
+        self._q_counts: OrderedDict[tuple[str, str | None], int] = OrderedDict()
         self.enforce = os.environ.get("TPL_ENFORCE") == "1"
+        try:
+            self.q_occurrences = max(2, int(os.environ.get("TPL_Q_GRADUATE_OCCURRENCES", "5")))
+        except ValueError:
+            self.q_occurrences = 5
         try:
             self.graduate_after = max(1, int(os.environ.get("TPL_GRADUATE_AFTER", "8")))
         except ValueError:
@@ -245,12 +255,31 @@ class TemplateMinerTier:
 
         kind = "discover"
         graduate_now = False
+        occurrences = 0
+        if self.enforce and gate_info.get("novel"):
+            occ_key = (line, gate_info.get("family_guess"))
+            self._q_counts[occ_key] = self._q_counts.get(occ_key, 0) + 1
+            self._q_counts.move_to_end(occ_key)
+            while len(self._q_counts) > MAX_QUARANTINE * 4:
+                self._q_counts.popitem(last=False)
+            occurrences = self._q_counts[occ_key]
+
         if (
             self.enforce
             and gate_info.get("novel")
             and entry["count"] < self.graduate_after
+            and occurrences < self.q_occurrences
         ):
             kind = "quarantined"
+        elif (
+            self.enforce
+            and gate_info.get("novel")
+            and occurrences >= self.q_occurrences
+        ):
+            # repeated novel format: escalate to discovery regardless of the
+            # graduation threshold — eviction/drift cannot stall it forever.
+            kind = "escalated"
+            self.stats["escalated"] = self.stats.get("escalated", 0) + 1
         elif (
             self.enforce
             and gate_info.get("novel")
@@ -269,6 +298,7 @@ class TemplateMinerTier:
             "cluster_id": cluster_id,
             "gate": gate_info,
             "quarantine_count": entry["count"],
+            "occurrences": occurrences,
             "graduate_after": self.graduate_after,
             "graduate_now": graduate_now,
         }
@@ -316,5 +346,7 @@ class TemplateMinerTier:
         self._kv_seen.clear()
         self._quarantine.clear()
         self._pending_graduation.clear()
+        self._q_counts.clear()
         for k in self.stats:
             self.stats[k] = 0
+        self.stats["escalated"] = 0

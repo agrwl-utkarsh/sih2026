@@ -78,6 +78,7 @@ All logs are mapped to the following normalized JSON schema:
 **ML tier configuration:**
 - `TPL_ENFORCE`: `1` promotes the FormatGate from shadow (observable) to enforcer (novel templates are quarantined; discovery deferred). Default: shadow mode.
 - `TPL_GRADUATE_AFTER`: sightings of the same novel template before one LLM discovery call labels the whole cluster (default `8`, used only in enforce mode).
+- `TPL_Q_GRADUATE_OCCURRENCES`: sightings of the same novel *line* before it escalates to discovery regardless of the graduation threshold (default `5`). Guards against cap-eviction or Drain rehashing locking a repeated novel format in quarantine forever.
 - `GATE_MARGIN`: multiplier on the novelty distance threshold (default `1.0`; raise to be more permissive, lower to be stricter).
 - `INGEST_API_KEY`: optional abuse guard — when set, `POST /api/logs/ingest` requires the `x-ingest-key` header. Default: open (demo mode). Prevents strangers from triggering LLM calls with crafted garbage.
 - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`: optional [Vercel KV](https://vercel.com/docs/kv)-compatible store. When set, learned template rules persist there and are re-fetched on cold Starts (per template), ending the cold-start rule loss. Without them the rule map is in-memory (previous behavior).
@@ -112,15 +113,22 @@ A `Dockerfile` for containerized deployment is intentionally not required; if ju
 Measured offline by `scripts/evaluate_accuracy.py` (pandas) → [`docs/accuracy_report.md`](docs/accuracy_report.md):
 
 - **100.00%** known-family classification over 12 supported log families (3 000-line synthetic corpus, every field varying)
-- **100%** catch of 240 lines from 4 never-seen format families (precision 89.2%, ~1% known-family false alarms — the calibration budget)
+- **100%** catch of 240 lines from 4 never-seen *synthetic* format families (precision 89.2%, ~1% known-family false alarms — the calibration budget)
 - Server loop: **0.28 ms/line** mean end-to-end with heuristic discovery; 99.5% of lines resolved without the discovery engine at all
+
+**Real-world ground truth (Loghub, human-validated templates)** — `scripts/evaluate_loghub.py` → [`docs/loghub_benchmark.md`](docs/loghub_benchmark.md), with the raw samples in `data/raw/loghub/`:
+
+- **100%** per-system family classification on 9 real systems (Linux, OpenSSH, Thunderbird, BGL, HPC, Apache, HDFS, Spark, Hadoop) on a benchmark split fully disjoint from training (gate v2 = synthetic corpus **augmented with the Loghub train split**)
+- Novelty recall on 3 never-trained real systems: Windows 100%, Proxifier 100%, HealthApp 86% (**95.2% macro**); false-alarm on known systems **1.5%**
+- Drain3 grouping accuracy vs official Loghub templates: **97.2% macro GA** (ICSE'19 benchmark metric) over 12 systems
+- The first synthetic-only gate scored 33% on real data — the benchmark caught it, the augmentation flywheel fixed it. This loop is the MLOps story.
 
 ## Limitations
 
 Please note the following system constraints:
 - **Tier-1 cache is in-memory**: the fingerprint cache is per-instance and is lost on cold start. Template *rules* survive if Upstash/Vercel KV is configured; without it, the Drain3 tree re-mines traffic at ~0.016 ms/line, so only template-to-rule learning (LLM labels) is affected — behavior, not correctness.
 - **Timezones**: Naive timestamps (timestamps without explicit timezone offsets) are assumed to be UTC.
-- **Gate coverage**: the novelty gate knows the 12 families it was trained on; exotic but *legitimate* families may be flagged novel (review via `/api/logs/quarantine`; retrain with `scripts/train_format_gate.py`).
+- **Gate coverage**: the novelty gate knows the 13 families it was trained on (12 synthetic + `hpc_supercomputer` from real Loghub data); exotic but *legitimate* families may be flagged novel (review via `/api/logs/quarantine`; retrain with `scripts/train_format_gate.py`). The artifact carries `GATE_FEATURE_VERSION` — feature changes require retraining (the loader refuses stale artifacts with an actionable message).
 
 ## Running and Testing
 

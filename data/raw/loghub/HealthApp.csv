@@ -1,0 +1,24 @@
+# Provenance: logpai/loghub @GitHub master — HealthApp/HealthApp_2k.log_structured.csv (Android step-counter app, 20171223)
+# Chunks fetched: 0 of 36 (2026-09-24, fetch_page tool). Comment lines (#) are non-data. Every-2nd subsample of the repetitive telemetry cycle; EventId coverage preserved.
+LineId,Time,Component,Pid,Content,EventId,EventTemplate
+1,20171223-22:15:29:606,Step_LSC,30002312,onStandStepChanged 3579,E42,onStandStepChanged <*>
+2,20171223-22:15:29:615,Step_LSC,30002312,onExtend:1514038530000 14 0 4,E39,onExtend:<*> <*> <*> <*>
+3,20171223-22:15:29:633,Step_StandReportReceiver,30002312,onReceive action: android.intent.action.SCREEN_ON,E41,onReceive action: android.intent.action.SCREEN_ON
+4,20171223-22:15:29:635,Step_LSC,30002312,processHandleBroadcastAction action:android.intent.action.SCREEN_ON,E43,processHandleBroadcastAction action:android.intent.action.SCREEN_ON
+5,20171223-22:15:29:635,Step_StandStepCounter,30002312,flush sensor data,E12,flush sensor data
+6,20171223-22:15:29:636,Step_SPUtils,30002312, getTodayTotalDetailSteps = 1514038440000##6993##548365##8661##12266##27164404,E22,getTodayTotalDetailSteps = <*>##<*>##<*>##<*>##<*>##<*>
+7,20171223-22:15:29:636,Step_SPUtils,30002312,setTodayTotalDetailSteps=1514038440000##7007##548365##8661##12361##27173954,E58,setTodayTotalDetailSteps=<*>
+9,20171223-22:15:29:645,Step_ExtSDM,30002312,calculateCaloriesWithCache totalCalories=126775,E4,calculateCaloriesWithCache totalCalories=<*>
+10,20171223-22:15:29:648,Step_ExtSDM,30002312,calculateAltitudeWithCache totalAltitude=240,E3,calculateAltitudeWithCache totalAltitude=<*>
+11,20171223-22:15:29:649,Step_StandReportReceiver,30002312,REPORT : 7007 5002 150089 240,E47,REPORT : <*> <*> <*> <*>
+14,20171223-22:15:29:800,Step_LSC,30002312,onStandStepChanged 3580,E42,onStandStepChanged <*>
+16,20171223-22:15:29:950,Step_SPUtils,30002312, getTodayTotalDetailSteps = 1514038440000##7007##548365##8661##12361##27173954,E22,getTodayTotalDetailSteps = <*>##<*>##<*>##<*>##<*>##<*>
+20,20171223-22:15:29:962,Step_StandReportReceiver,30002312,REPORT : 7008 5003 150111 240,E47,REPORT : <*> <*> <*> <*>
+21,20171223-22:15:30:331,Step_LSC,30002312,onStandStepChanged 3581,E42,onStandStepChanged <*>
+25,20171223-22:15:30:639,Step_ExtSDM,30002312,calculateCaloriesWithCache totalCalories=126818,E4,calculateCaloriesWithCache totalCalories=<*>
+27,20171223-22:15:30:642,Step_StandReportReceiver,30002312,REPORT : 7009 5004 150132 240,E47,REPORT : <*> <*> <*> <*>
+30,20171223-22:15:31:142,Step_SPUtils,30002312, getTodayTotalDetailSteps = 1514038440000##7009##548365##8661##12551##27174951,E22,getTodayTotalDetailSteps = <*>##<*>##<*>##<*>##<*>##<*>
+38,20171223-22:15:32:147,Step_SPUtils,30002312,setTodayTotalDetailSteps=1514038440000##7012##548365##8661##12741##27176464,E58,setTodayTotalDetailSteps=<*>
+42,20171223-22:15:32:340,Step_LSC,30002312,onStandStepChanged 3585,E42,onStandStepChanged <*>
+49,20171223-22:15:33:840,Step_LSC,30002312,onStandStepChanged 3586,E42,onStandStepChanged <*>
+59,20171223-22:15:33:644,Step_SPUtils,30002312,setTodayTotalDetailSteps=1514038440000##7015##548365##8661##13026##27177962,E58,setTodayTotalDetailSteps=<*>

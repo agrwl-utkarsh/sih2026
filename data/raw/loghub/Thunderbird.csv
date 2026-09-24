@@ -1,0 +1,24 @@
+# Provenance: logpai/loghub @GitHub master — Thunderbird/Thunderbird_2k.log_structured.csv (Sandia supercomputer syslog, Nov 2005)
+# Chunks fetched: 0 of 56 (2026-09-24, fetch_page tool). Comment lines (#) are non-data. Every-3rd subsample of cron triplets; EventId coverage preserved.
+# HELD-OUT family: never appears in the FormatGate or Drain training corpus — used for novelty-detection scoring.
+LineId,Label,Timestamp,Date,User,Month,Day,Time,Location,Component,PID,Content,EventId,EventTemplate
+1,-,1131566461,2005.11.09,dn228,Nov,9,12:01:01,dn228/dn228,crond(pam_unix),2915,session closed for user root,E117,session closed for user root
+2,-,1131566461,2005.11.09,dn228,Nov,9,12:01:01,dn228/dn228,crond(pam_unix),2915,session opened for user root by (uid=0),E118,session opened for user root by (uid=0)
+3,-,1131566461,2005.11.09,dn228,Nov,9,12:01:01,dn228/dn228,crond,2916,(root) CMD (run-parts /etc/cron.hourly),E3,(root) CMD (run-parts /etc/cron.hourly)
+7,-,1131566461,2005.11.09,dn3,Nov,9,12:01:01,dn3/dn3,crond(pam_unix),2907,session closed for user root,E117,session closed for user root
+8,-,1131566461,2005.11.09,dn3,Nov,9,12:01:01,dn3/dn3,crond(pam_unix),2907,session opened for user root by (uid=0),E118,session opened for user root by (uid=0)
+9,-,1131566461,2005.11.09,dn3,Nov,9,12:01:01,dn3/dn3,crond,2908,(root) CMD (run-parts /etc/cron.hourly),E3,(root) CMD (run-parts /etc/cron.hourly)
+13,-,1131566462,2005.11.09,dn700,Nov,9,12:01:01,dn700/dn700,crond(pam_unix),2912,session closed for user root,E117,session closed for user root
+15,-,1131566462,2005.11.09,dn700,Nov,9,12:01:01,dn700/dn700,crond,2914,(root) CMD (run-parts /etc/cron.hourly),E3,(root) CMD (run-parts /etc/cron.hourly)
+22,-,1131566462,2005.11.09,dn754,Nov,9,12:01:01,dn754/dn754,crond(pam_unix),2913,session closed for user root,E117,session closed for user root
+24,-,1131566462,2005.11.09,dn754,Nov,9,12:01:01,dn754/dn754,crond,2915,(root) CMD (run-parts /etc/cron.hourly),E3,(root) CMD (run-parts /etc/cron.hourly)
+31,-,1131566462,2005.11.09,eadmin2,Nov,9,12:01:01,src@eadmin2,crond(pam_unix),12636,session closed for user root,E117,session closed for user root
+33,-,1131566462,2005.11.09,eadmin2,Nov,9,12:01:01,src@eadmin2,crond,12637,(root) CMD (run-parts /etc/cron.hourly),E3,(root) CMD (run-parts /etc/cron.hourly)
+40,-,1131566461,2005.11.09,tbird-admin1,Nov,9,12:01:01,local@tbird-admin1,/apps/x86_64/system/ganglia-3.0.1/sbin/gmetad,1682,data_thread() got not answer from any [Thunderbird_A8] datasource,E32,data_thread() got not answer from any [Thunderbird_<*>] datasource
+41,-,1131566461,2005.11.09,tbird-admin1,Nov,9,12:01:01,local@tbird-admin1,/apps/x86_64/system/ganglia-3.0.1/sbin/gmetad,1682,data_thread() got not answer from any [Thunderbird_B8] datasource,E32,data_thread() got not answer from any [Thunderbird_<*>] datasource
+42,-,1131566461,2005.11.09,tbird-admin1,Nov,9,12:01:01,local@tbird-admin1,/apps/x86_64/system/ganglia-3.0.1/sbin/gmetad,1682,data_thread() got not answer from any [Thunderbird_C5] datasource,E32,data_thread() got not answer from any [Thunderbird_<*>] datasource
+43,-,1131566462,2005.11.09,#8#,Nov,9,12:01:02,#8#/#8#,crond(pam_unix),23469,session closed for user root,E117,session closed for user root
+44,-,1131566462,2005.11.09,#8#,Nov,9,12:01:02,#8#/#8#,crond(pam_unix),23469,session opened for user root by (uid=0),E118,session opened for user root by (uid=0)
+46,-,1131566463,2005.11.09,cn142,Nov,9,12:01:03,cn142/cn142,ntpd,7467,"synchronized to 10.100.20.250, stratum 3",E125,"synchronized to <*>, stratum <*>"
+47,-,1131566463,2005.11.09,dn1021,Nov,9,12:01:03,dn1021/dn1021,ntpd,32563,"synchronized to 10.100.28.250, stratum 3",E125,"synchronized to <*>, stratum <*>"
+48,-,1131566463,2005.11.09,dn736,Nov,9,12:01:03,dn736/dn736,ntpd,1119,"synchronized to 10.100.24.250, stratum 3",E125,"synchronized to <*>, stratum <*>"

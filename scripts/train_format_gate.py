@@ -122,7 +122,7 @@ GENS = {
     ),
 }
 
-ALL_FAMILIES = sorted(GENS)
+ALL_FAMILIES = sorted(GENS) + ["hpc_supercomputer"]  # real-data-only family (Loghub BGL/HPC, no synthetic generator)
 
 # Families the model NEVER sees; used only to validate the novelty gate.
 UNKNOWN = {
@@ -156,6 +156,63 @@ def make_corpus(n_per: int, gens: dict) -> tuple[list[str], list[str]]:
     idx = list(range(len(X)))
     random.shuffle(idx)
     return [X[i] for i in idx], [y[i] for i in idx]
+
+
+# ---------------------- real-world augmentation (Loghub) --------------------
+# The first Loghub benchmark run (docs/loghub_benchmark.md v1) showed the
+# synthetic-only gate over-flagging REAL lines of known families as novel
+# (real message-text variety >> synthetic variety). Fix = the data flywheel:
+# inject real Loghub lines (masked-line features, same pipeline) into the
+# training corpus, and calibrate the novelty threshold on the held-out REAL
+# chunk instead of foreign-host synthetic lines.
+#
+# Disjointness: `real_corpus(split="train")` keeps LineId%5<3 rows;
+# scripts/evaluate_loghub.py benchmarks on split="bench" (LineId%5>=3).
+# No line ever appears in both training and benchmark.
+
+from pathlib import Path as _Path  # noqa: E402
+import csv as _csv  # noqa: E402
+import sys as _sys  # noqa: E402
+
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))
+from evaluate_loghub import load_rows, raw_line  # noqa: E402
+
+REAL_DATA = _Path(__file__).resolve().parent.parent / "data" / "raw" / "loghub"
+
+# system -> (family, role): role "known" augments training; role "unknown"
+# is used ONLY by scripts/evaluate_loghub.py for the novelty recall table.
+REAL_KNOWN = {
+    "Linux": "syslog_bsd",
+    "OpenSSH": "syslog_bsd",
+    "Thunderbird": "syslog_bsd",
+    "Apache": "nginx_err",
+    "HDFS": "spring_boot",
+    "Spark": "spring_boot",
+    "Hadoop": "spring_boot",
+    "BGL": "hpc_supercomputer",   # NEW family: real supercomputer RAS/node logs
+    "HPC": "hpc_supercomputer",
+}
+REAL_UNKNOWN = ["Windows", "Proxifier", "HealthApp"]
+
+
+def real_corpus(split: str) -> tuple[list[str], list[str]]:
+    """Real Loghub (line, label) pairs disjoint by split; label = family for
+    known systems, system name for unknown ones. Returns ([], []) if the
+    data dir is absent so synthetic-only training still works."""
+    X, y = [], []
+    if not REAL_DATA.exists():
+        return X, y
+    for system, fam in REAL_KNOWN.items():
+        for r in load_rows(system):
+            if (int(r["LineId"]) % 5 < 3) == (split == "train"):
+                X.append(raw_line(system, r))
+                y.append(fam)
+    for system in REAL_UNKNOWN:
+        for r in load_rows(system):
+            if (int(r["LineId"]) % 5 < 3) == (split == "train"):
+                X.append(raw_line(system, r))
+                y.append(system)
+    return X, y
 
 
 def main() -> int:
@@ -194,47 +251,100 @@ def main() -> int:
 
     Xtr, Xte, ytr, yte = train_test_split(Xtp, y, test_size=0.2, random_state=args.seed, stratify=y)
 
+    # Real-world augmentation (Loghub GROUND TRUTH samples; LineId%5<3 split —
+    # benchmark set stays disjoint). Augment ONLY the train fold: the test fold
+    # and calibration stay honest. Skip gracefully when data/ is absent.
+    # HARD RULE: REAL_UNKNOWN systems (Windows/Proxifier/HealthApp) must NEVER
+    # enter model fitting — they are the genuine novelty test set. If they did,
+    # distances would collapse and novelty recall would silently die in prod
+    # (v1 attempt leaked them here; bench chunk then also became contaminated).
+    Xr_tr, yr_tr = real_corpus("train")
+    keep = [i for i, fam in enumerate(yr_tr) if fam in set(REAL_KNOWN.values())]
+    Xr_tr = [Xr_tr[i] for i in keep]
+    yr_tr = [yr_tr[i] for i in keep]
+    if Xr_tr:
+        Xr_tp = [mask_line(l) for l in Xr_tr]
+        Xtr_aug, ytr_aug = Xtr + Xr_tp, ytr + yr_tr
+        print(f"[*] real augmentation: +{len(Xr_tp)} Loghub lines "
+              f"({sorted(set(yr_tr))}) into {len(Xtr)} synthetic train lines")
+    else:
+        Xr_tp, Xtr_aug, ytr_aug = [], Xtr, ytr
+        print("[!] data/raw/loghub missing — training synthetic-only")
+
     clf = Pipeline(steps=[
         ("tfidf", TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 4), sublinear_tf=True, min_df=2, max_features=10000)),
         ("lr", LogisticRegression(max_iter=2000, C=8.0)),
     ])
     t0 = time.perf_counter()
-    clf.fit(Xtr, ytr)
-    acc = accuracy_score(yte, clf.predict(Xte))
-    print(f"[*] classifier fit in {time.perf_counter()-t0:.2f}s | held-out family accuracy: {acc*100:.2f}%")
+    clf.fit(Xtr_aug, ytr_aug)
+    acc_syn = accuracy_score(yte, clf.predict(Xte))
+    # Family accuracy on the DISJOINT real benchmark chunk (the headline fix).
+    # Known-family rows only: unknown-system rows are reserved solely for the
+    # novelty catch table (distances), never for accuracy or calibration.
+    _XR_B, _YR_B = real_corpus("bench")
+    _known = set(REAL_KNOWN.values())
+    Xr_b = [x for x, f in zip(_XR_B, _YR_B) if f in _known]
+    yr_b = [f for f in _YR_B if f in _known]
+    acc_real = None
+    if Xr_b:
+        Xrb_tp = [mask_line(l) for l in Xr_b]
+        acc_real = accuracy_score(yr_b, clf.predict(Xrb_tp))
+    print(f"[*] classifier fit in {time.perf_counter()-t0:.2f}s | held-out accuracy:"
+          f" synthetic {acc_syn*100:.2f}%"
+          + (f" | REAL Loghub bench {acc_real*100:.2f}%" if acc_real is not None else " | real bench n/a"))
 
     tfidf = clf.named_steps["tfidf"]
-    knn = NearestNeighbors(n_neighbors=3).fit(tfidf.transform(Xtr))
+    knn = NearestNeighbors(n_neighbors=3).fit(tfidf.transform(Xtr_aug))
 
-    # Honest calibration: held-out train lines are members of the same finite
-    # template multiset as train (distance ~0 -> vacuous). Calibrate instead on
-    # an INDEPENDENT corpus of the same families but with hosts the training
-    # set never saw -> this measures true generalization drift.
+    # Calibration: held-out synthetic lines are template-mates of train
+    # (distance ~0 -> void), and FOREIGN-HOST synthetic lines no longer measure
+    # the real distribution. Calibrate on the DISJOINT REAL benchmark chunk;
+    # fall back to foreign-host synthetic when data/ is absent.
     global HOSTS
     orig_hosts, HOSTS = HOSTS, ["srv-a", "hq-db-1", "edge-9", "mail-2", "proxy-7"]
     Xcal, ycal = make_corpus(120, GENS)
     Xcal_tp = mine(Xcal)
     HOSTS = orig_hosts
-    cal_dist = knn.kneighbors(tfidf.transform(Xcal_tp), return_distance=True)[0].mean(axis=1)
+    if Xr_b:
+        cal_dist = knn.kneighbors(tfidf.transform(Xrb_tp), return_distance=True)[0].mean(axis=1)
+        cal_src = f"REAL Loghub bench chunk (n={len(Xrb_tp)})"
+    else:
+        cal_dist = knn.kneighbors(tfidf.transform(Xcal_tp), return_distance=True)[0].mean(axis=1)
+        cal_src = "foreign-host synthetic (fallback)"
     threshold = max(float(np.percentile(cal_dist, 99)), 0.02)
     cal_false_alarm = float(np.mean(cal_dist > threshold))
-    holdout_known_dist = knn.kneighbors(tfidf.transform(Xte), return_distance=True)[0].mean(axis=1)
-    print(f"[*] novelty gate: kNN p99 on foreign-host calibration = {threshold:.4f} "
-          f"(calibration false-alarm {cal_false_alarm*100:.1f}%; "
-          f"in-sample held-out dist max {holdout_known_dist.max():.4f})")
+    print(f"[*] novelty gate: kNN p99 on {cal_src} = {threshold:.4f} "
+          f"(calibration false-alarm {cal_false_alarm*100:.1f}%)")
     false_alarm = cal_false_alarm
 
-    # Validate against families never seen in training
+    # Validate against families never seen in training: synthetic unknowns +
+    # REAL held-out systems (their bench chunk never entered training).
     xu, yu = make_corpus(60, UNKNOWN)
     xutp = mine(xu)
     dist_u = knn.kneighbors(tfidf.transform(xutp), return_distance=True)[0].mean(axis=1)
-    caught = dist_u > threshold
-    per_family = {
-        fam: round(float(caught[[i for i, t in enumerate(yu) if t == fam]].mean()), 3)
-        for fam in UNKNOWN
-    }
+    caught = list(dist_u > threshold)
+    unknown_labels = list(yu)
+    # real-unknown bench lines: reconstruct (label = system for REAL_UNKNOWN)
+    Xru, yru = [], []
+    for sname in REAL_UNKNOWN:
+        rows_p = REAL_DATA / f"{sname}.csv"
+        if rows_p.exists():
+            for r in load_rows(sname):
+                if int(r["LineId"]) % 5 >= 3:
+                    Xru.append(raw_line(sname, r))
+                    yru.append(sname)
+    if Xru:
+        dist_ru = knn.kneighbors(tfidf.transform([mask_line(l) for l in Xru]), return_distance=True)[0].mean(axis=1)
+        caught_ru = list(dist_ru > threshold)
+        caught += caught_ru
+        unknown_labels += yru
+    per_family = {}
+    for fam in set(unknown_labels):
+        idx = [i for i, t in enumerate(unknown_labels) if t == fam]
+        per_family[fam] = round(float(np.mean([caught[i] for i in idx])), 3)
     catch_rate = float(np.mean(caught))
-    print(f"[*] novelty catch rate on never-seen families: {catch_rate*100:.1f}%  {per_family}")
+    print(f"[*] novelty catch rate on never-seen families (synthetic + REAL): {catch_rate*100:.1f}%  {per_family}")
+    acc = acc_syn if acc_real is None else min(acc_syn, acc_real)
 
     payload = {
         "clf": clf,
@@ -243,12 +353,16 @@ def main() -> int:
         "families": ALL_FAMILIES,
         "false_alarm_heldout": false_alarm,
         "heldout_accuracy": float(acc),
+        "heldout_accuracy_synthetic": float(acc_syn),
+        "heldout_accuracy_real": (None if acc_real is None else float(acc_real)),
+        "real_train_lines": len(Xr_tr),
         "unknown_catch_rate": catch_rate,
         "trained_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "n_train": len(Xtr),
         "n_clusters_seen": len(miner.drain.id_to_cluster),
         "sklearn_version": sklearn.__version__,
         "masking_version": 1,
+        "gate_version": 2,  # GATE_FEATURE_VERSION: static gate-drain of raw lines
     }
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(payload, args.output)

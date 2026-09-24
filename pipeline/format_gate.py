@@ -31,6 +31,11 @@ logger = logging.getLogger(__name__)
 
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "format_gate.pkl"
 
+# Bump whenever gate INPUT FEATURES change so stale artifacts can't silently
+# mismatch the runtime (root-cause of the 2026-09-24 distance inflation bug:
+# v1 = Drain-prefix ID features; v2 = static gate-drain of raw lines).
+GATE_FEATURE_VERSION = 2
+
 _default_margin = 1.0
 try:
     _default_margin = float(os.environ.get("GATE_MARGIN", "1.0"))
@@ -67,10 +72,16 @@ class FormatGate:
             self._clf = payload["clf"]
             self._knn = payload["knn"]
             self._threshold = float(payload["threshold"])
+            if payload.get("gate_version") != GATE_FEATURE_VERSION:
+                raise ValueError(
+                    f"gate feature version {payload.get('gate_version')} != runtime"
+                    f" {GATE_FEATURE_VERSION} — retrain with scripts/train_format_gate.py"
+                )
             self.loaded = True
             self.info.update(
                 loaded=True,
                 reason=None,
+                gate_version=GATE_FEATURE_VERSION,
                 families=list(payload.get("families", [])),
                 threshold=self._threshold,
                 trained_at=payload.get("trained_at"),
@@ -122,6 +133,7 @@ class FormatGate:
         novel = bool(d is not None and d > self._threshold * self.margin)
         return {
             "loaded": True,
+            "gate_version": GATE_FEATURE_VERSION,
             "novel": novel,
             "distance": round(d, 4) if d is not None else None,
             "threshold": round(self._threshold * self.margin, 4),
