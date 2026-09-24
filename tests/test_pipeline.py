@@ -4,7 +4,7 @@ import datetime
 import json
 from unittest.mock import patch, MagicMock
 
-from main import app, parser, normalizer, discovery_engine
+from main import app, parser, normalizer, discovery_engine, template_tier
 from pipeline.timeutil import parse_timestamp
 
 client = TestClient(app)
@@ -12,6 +12,7 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def clear_cache():
     parser.cache.clear()
+    template_tier.reset()
     discovery_engine._skip_gemini = False
 
 def test_1_plain_line_after_json_no_500():
