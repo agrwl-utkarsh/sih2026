@@ -4,7 +4,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, StringConstraints
@@ -19,6 +19,8 @@ from pipeline.format_detector import (
 )
 from pipeline.parser import UniversalParser
 from pipeline.normalizer import Normalizer
+from pipeline.template_miner import TemplateMinerTier
+from pipeline.format_gate import GATE
 
 app = FastAPI(title="Format-Agnostic Two-Tier Log Pipeline (SIH26)")
 
@@ -33,6 +35,15 @@ def read_index():
 discovery_engine = DiscoveryEngine()
 parser = UniversalParser()
 normalizer = Normalizer()
+template_tier = TemplateMinerTier()
+
+
+def _require_ingest_key(request: Request) -> None:
+    """Optional abuse guard: set INGEST_API_KEY to require callers of
+    /api/logs/ingest to send 'x-ingest-key'. Unset = open (demo default)."""
+    expected = os.environ.get("INGEST_API_KEY")
+    if expected and request.headers.get("x-ingest-key", "") != expected:
+        raise HTTPException(status_code=401, detail="Invalid or missing x-ingest-key header")
 
 @app.get("/api/health")
 def health(check_live: bool = False):
@@ -66,6 +77,14 @@ def health(check_live: bool = False):
         "raw_model": raw_model,
         "gemini_skipped": gemini_skipped,
         "has_groq": has_groq,
+        "template_tier": {
+            "drain3_available": not template_tier.disabled,
+            "enforce_mode": template_tier.enforce,
+            "rule_backend": template_tier.rule_backend(),
+            "stats": dict(template_tier.stats),
+        },
+        "format_gate": GATE.info,
+        "ingest_auth": bool(os.environ.get("INGEST_API_KEY")),
     }
     if check_live:
         resp["live_check"] = discovery_engine.check_llm()
@@ -151,28 +170,64 @@ def process_record(log: str) -> dict:
     try:
         features = parser.fingerprint(log)
         fp_str, rule = parser.find_cached_rule(features)
-        
-        if fp_str and rule:
-            mode = "Cached"
-        else:
-            mode = "Discovery"
-            rule = discovery_engine.run_inference(log, features)
-            parser.store_rule(features, rule)
-            
+
+        mode = "Cached"
+        tier_result = {"kind": "cached", "template": None, "cluster_id": None, "gate": {}}
+
+        if not (fp_str and rule):
+            # Fingerprint missed -> ask the Drain3 tier. A stored rule for this
+            # exact template resolves drifted fields without any LLM call;
+            # a brand new template either passes through to discovery
+            # (shadow mode, default) or is quarantined (TPL_ENFORCE=1).
+            tier_result = template_tier.decide(log, GATE)
+
+            if tier_result["kind"] == "rule":
+                mode = "Template-Rule"
+                rule = tier_result["rule"]
+                parser.store_rule(features, rule)
+            elif tier_result["kind"] == "quarantined":
+                mode = "Quarantined"
+                rule = discovery_engine.run_inference(log, features, force_heuristic=True)
+                # Deliberately NOT stored in the parser cache: in enforce mode
+                # every sighting must advance the cluster's graduation counter.
+            else:  # "discover" (shadow mode, or a graduating novel cluster)
+                mode = "Discovery"
+                rule = discovery_engine.run_inference(log, features)
+                parser.store_rule(features, rule)
+                if tier_result["template"]:
+                    template_tier.learn_rule(
+                        tier_result["template"], rule, tier_result["cluster_id"]
+                    )
+
         parsed = parser.parse_with_rule(log, rule)
         normalized = normalizer.normalize(parsed, raw_log=log)
-        
+
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
-        
-        return {
+
+        resp = {
             "mode": mode,
             "format": rule.get("signature", "Unknown Signature"),
             "inferred_by": rule.get("inferred_by"),
-            "llm_error": rule.get("llm_error") if mode == "Discovery" else None,
+            "llm_error": rule.get("llm_error") if mode in ("Discovery", "Quarantined") else None,
             "latency_ms": latency_ms,
             "extracted_fields": parsed.get("parsed_fields", {}),
-            "normalized": normalized
+            "normalized": normalized,
+            "template": (tier_result["template"] or "")[:300] or None,
+            "cluster_id": tier_result["cluster_id"],
         }
+        gate_info = tier_result.get("gate") or {}
+        if gate_info.get("loaded"):
+            resp["gate"] = {
+                "novel": gate_info.get("novel"),
+                "distance": gate_info.get("distance"),
+                "family_guess": gate_info.get("family_guess"),
+            }
+        if tier_result["kind"] == "quarantined":
+            resp["quarantine"] = {
+                "count": tier_result.get("quarantine_count"),
+                "graduate_after": tier_result.get("graduate_after"),
+            }
+        return resp
     except Exception as e:
         logging.exception("Failed to process record")
         return {
@@ -186,7 +241,8 @@ def process_record(log: str) -> dict:
         }
 
 @app.post("/api/logs/ingest")
-def ingest_logs(batch: LogBatch):
+def ingest_logs(batch: LogBatch, request: Request):
+    _require_ingest_key(request)
     buffered_logs = buffer_lines(batch.logs)
     results = [process_record(log) for log in buffered_logs]
     return {"processed_logs": results}
@@ -194,3 +250,16 @@ def ingest_logs(batch: LogBatch):
 @app.get("/api/logs/cache")
 def get_cache():
     return {"cache": parser.snapshot_cache()}
+
+@app.get("/api/logs/templates")
+def get_templates():
+    """Drain3-mined templates across all ingested traffic: cluster sizes,
+    which clusters have learned rules, and tier statistics."""
+    return template_tier.templates_view()
+
+@app.get("/api/logs/quarantine")
+def get_quarantine():
+    """Novel templates seen so far, with novelty-gate distances and raw
+    samples. With TPL_ENFORCE=1 these are the templates withheld from the
+    discovery engine until their cluster graduates."""
+    return template_tier.quarantine_view()

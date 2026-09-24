@@ -2,3 +2,7 @@ fastapi>=0.110
 pydantic>=2.5
 python-dateutil>=2.8
 requests>=2.31
+drain3>=0.9.11
+# Pinned exactly: models/format_gate.pkl is version-sensitive; retrain with
+# scripts/train_format_gate.py if bumping this.
+scikit-learn==1.9.1

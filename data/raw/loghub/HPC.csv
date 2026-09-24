@@ -1,0 +1,32 @@
+# Provenance: logpai/loghub @GitHub master — HPC/HPC_2k.log_structured.csv (HPC cluster log)
+# Chunks fetched: 0, 15 of 28 (2026-09-24, fetch_page tool). Boundary partial rows dropped. Comment lines (#) are non-data.
+# Subsampled within repeating boot/wait stretches (chunk 0) and every 3rd row in the ambient/normal temperature telemetry (chunk 15).
+LineId,LogId,Node,Component,State,Time,Flag,Content,EventId,EventTemplate
+1,134681,node-246,unix.hw,state_change.unavailable,1077804742,1,Component State Change: Component \042SCSI-WWID:01000010:6005-08b4-0001-00c6-0006-3000-003d-0000\042 is in the unavailable state (HWID=1973),E13,Component State Change: Component <*> is in the unavailable state (HWID=<*>)
+2,350766,node-109,unix.hw,state_change.unavailable,1084680778,1,Component State Change: Component \042alt0\042 is in the unavailable state (HWID=3180),E13,Component State Change: Component <*> is in the unavailable state (HWID=<*>)
+8,225111,node-10,unix.hw,state_change.unavailable,1117296789,1,Component State Change: Component \042alt0\042 is in the unavailable state (HWID=3891),E13,Component State Change: Component <*> is in the unavailable state (HWID=<*>)
+12,460773,node-199,unix.hw,state_change.unavailable,1145552100,1,Component State Change: Component \042alt0\042 is in the unavailable state (HWID=2608),E13,Component State Change: Component <*> is in the unavailable state (HWID=<*>)
+13,2568643,node-70,action,start,1074119817,1,clusterAddMember  (command 1902),E8,clusterAddMember  (command <*>)
+14,2570772,node-124,action,start,1074123150,1,clusterAddMember  (command 1900),E8,clusterAddMember  (command <*>)
+15,2571927,node-28,action,start,1074125371,1,risBoot  (command 1903),E36,risBoot  (command <*>)
+16,2572286,node-17,action,start,1074126278,1,bootGenvmunix  (command 1903),E6,bootGenvmunix  (command <*>)
+17,2575909,node-162,action,start,1074178193,1,boot  (command 1911),E4,boot  (command <*>)
+19,2599298,node-198,action,start,1074297419,1,boot  (command 1978),E4,boot  (command <*>)
+21,2601401,node-184,action,start,1074298390,1,wait  (command 1975),E45,wait  (command <*>)
+23,2608062,node-238,action,start,1074461014,1,halt  (command 1982),E19,halt  (command <*>)
+28,41108,node-93,action,start,1076538873,1,boot  (command 2152),E4,boot  (command <*>)
+33,76306,node-57,action,start,1077204892,1,halt  (command 2221),E19,halt  (command <*>)
+42,93083,node-242,action,start,1077645240,1,boot  (command 2257),E4,boot  (command <*>)
+52,163146,node-206,action,start,1077878060,1,boot  (command 2417),E4,boot  (command <*>)
+1275,119973,node-105,node,temperature,1129243651,1,ambient=30,E2,ambient=<*>
+1278,118574,gige3,gige,temperature,1129121155,1,normal,E31,normal
+1280,118358,gige3,gige,temperature,1129078855,1,warning,E46,warning
+1287,163206,gige3,gige,temperature,1130632279,1,warning,E46,warning
+1296,154670,node-243,node,temperature,1130177820,1,ambient=29,E2,ambient=<*>
+1312,166189,node-114,node,temperature,1130825000,1,warning,E46,warning
+1325,263026,node-250,node,temperature,1133576640,1,ambient=36,E2,ambient=<*>
+1334,311373,gige3,gige,temperature,1136079262,1,warning,E46,warning
+1346,321202,gige6,gige,temperature,1139481957,1,warning,E46,warning
+1359,333067,gige7,gige,temperature,1140124268,1,critical,E15,critical
+1369,348173,gige7,gige,temperature,1140469273,1,critical,E15,critical
+1376,381136,node-88,node,temperature,1142037660,1,ambient=33,E2,ambient=<*>

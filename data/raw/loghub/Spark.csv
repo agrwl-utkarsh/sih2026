@@ -1,0 +1,35 @@
+# Provenance: logpai/loghub @GitHub master — Spark/Spark_2k.log_structured.csv (Apache Spark executor log, 17/06/09)
+# Chunks fetched: 0 of 39 (2026-09-24, fetch_page tool). Comment lines (#) are non-data. Partial boundary row dropped.
+LineId,Date,Time,Level,Component,Content,EventId,EventTemplate
+1,17/06/09,20:10:40,INFO,executor.CoarseGrainedExecutorBackend,"Registered signal handlers for [TERM, HUP, INT]",E22,"Registered signal handlers for [TERM, HUP, INT]"
+2,17/06/09,20:10:40,INFO,spark.SecurityManager,"Changing view acls to: yarn,curi",E5,Changing view acls to: <*>
+3,17/06/09,20:10:40,INFO,spark.SecurityManager,"Changing modify acls to: yarn,curi",E4,Changing modify acls to: <*>
+4,17/06/09,20:10:40,INFO,spark.SecurityManager,"SecurityManager: authentication disabled; ui acls disabled; users with view permissions: Set(yarn, curi); users with modify permissions: Set(yarn, curi)",E26,"SecurityManager: authentication disabled; ui acls disabled; users with view permissions: Set(yarn, curi); users with modify permissions: Set(yarn, curi)"
+8,17/06/09,20:10:41,INFO,slf4j.Slf4jLogger,Slf4jLogger started,E28,Slf4jLogger started
+9,17/06/09,20:10:41,INFO,Remoting,Starting remoting,E31,Starting remoting
+10,17/06/09,20:10:41,INFO,Remoting,Remoting started; listening on addresses :[akka.tcp://sparkExecutorActorSystem@mesos-slave-07:55904],E23,Remoting started; listening on addresses :[akka.tcp://<*>]
+11,17/06/09,20:10:41,INFO,util.Utils,Successfully started service 'sparkExecutorActorSystem' on port 55904.,E34,Successfully started service 'sparkExecutorActorSystem' on port <*>.
+12,17/06/09,20:10:41,INFO,storage.DiskBlockManager,Created local directory at /opt/hdfs/nodemanager/usercache/curi/appcache/application_1485248649253_0147/blockmgr-70293f72-844a-4b39-9ad6-fb0ad7e364e4,E7,Created local directory at <*>
+13,17/06/09,20:10:41,INFO,storage.MemoryStore,MemoryStore started with capacity 17.7 GB,E18,MemoryStore started with capacity <*> GB
+14,17/06/09,20:10:42,INFO,executor.CoarseGrainedExecutorBackend,Connecting to driver: spark://CoarseGrainedScheduler@10.10.34.11:48069,E6,Connecting to driver: spark://<*>
+15,17/06/09,20:10:42,INFO,executor.CoarseGrainedExecutorBackend,Successfully registered with driver,E32,Successfully registered with driver
+16,17/06/09,20:10:42,INFO,executor.Executor,Starting executor ID 5 on host mesos-slave-07,E30,Starting executor ID <*> on host <*>
+17,17/06/09,20:10:42,INFO,util.Utils,Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 40984.,E33,Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port <*>.
+18,17/06/09,20:10:42,INFO,netty.NettyBlockTransferService,Server created on 40984,E27,Server created on <*>
+19,17/06/09,20:10:42,INFO,storage.BlockManagerMaster,Trying to register BlockManager,E36,Trying to register BlockManager
+20,17/06/09,20:10:42,INFO,storage.BlockManagerMaster,Registered BlockManager,E21,Registered BlockManager
+21,17/06/09,20:10:45,INFO,executor.CoarseGrainedExecutorBackend,Got assigned task 0,E11,Got assigned task <*>
+25,17/06/09,20:10:45,INFO,executor.Executor,Running task 0.0 in stage 0.0 (TID 0),E24,Running task <*> in stage <*> (TID <*>)
+29,17/06/09,20:10:45,INFO,executor.CoarseGrainedExecutorBackend,Got assigned task 4,E11,Got assigned task <*>
+31,17/06/09,20:10:45,INFO,broadcast.TorrentBroadcast,Started reading broadcast variable 9,E29,Started reading broadcast variable <*>
+32,17/06/09,20:10:45,INFO,storage.MemoryStore,"Block broadcast_9_piece0 stored as bytes in memory (estimated size 5.2 KB, free 5.2 KB)",E2,"Block <*> stored as bytes in memory (estimated size <*>, free <*>)"
+33,17/06/09,20:10:45,INFO,broadcast.TorrentBroadcast,Reading broadcast variable 9 took 160 ms,E20,Reading broadcast variable <*> took <*> ms
+34,17/06/09,20:10:46,INFO,storage.MemoryStore,"Block broadcast_9 stored as values in memory (estimated size 8.8 KB, free 14.0 KB)",E3,"Block <*> stored as values in memory (estimated size <*>, free <*>)"
+35,17/06/09,20:10:46,INFO,spark.CacheManager,"Partition rdd_2_1 not found, computing it",E19,"Partition rdd_<*> not found, computing it"
+39,17/06/09,20:10:46,INFO,spark.CacheManager,"Partition rdd_2_4 not found, computing it",E19,"Partition rdd_<*> not found, computing it"
+40,17/06/09,20:10:46,INFO,rdd.HadoopRDD,Input split: hdfs://10.10.34.11:9000/pjhe/logs/2kSOSP.log:21876+7292,E12,Input split: hdfs://<*>
+44,17/06/09,20:10:46,INFO,rdd.HadoopRDD,Input split: hdfs://10.10.34.11:9000/pjhe/logs/2kSOSP.log:29168+7292,E12,Input split: hdfs://<*>
+45,17/06/09,20:10:46,INFO,broadcast.TorrentBroadcast,Started reading broadcast variable 8,E29,Started reading broadcast variable <*>
+49,17/06/09,20:10:47,INFO,Configuration.deprecation,"mapred.tip.id is deprecated. Instead, use mapreduce.task.id",E17,"mapred.tip.id is deprecated. Instead, use mapreduce.task.id"
+50,17/06/09,20:10:47,INFO,Configuration.deprecation,"mapred.task.id is deprecated. Instead, use mapreduce.task.attempt.id",E14,"mapred.task.id is deprecated. Instead, use mapreduce.task.attempt.id"
+51,17/06/09,20:10:47,INFO,Configuration.deprecation,"mapred.task.is.map is deprecated. Instead, use mapreduce.task.ismap",E15,"mapred.task.is.map is deprecated. Instead, use mapreduce.task.ismap"

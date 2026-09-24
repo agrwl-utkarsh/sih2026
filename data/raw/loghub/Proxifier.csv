@@ -1,0 +1,23 @@
+# Provenance: logpai/loghub @GitHub master — Proxifier/Proxifier_2k.log_structured.csv (Piazza Windows proxy client log)
+# Chunks fetched: 0 of 45 (2026-09-24, fetch_page tool). Comment lines (#) are non-data. Every-3rd subsample of open/close cycles; EventId coverage preserved.
+# HELD-OUT family: never appears in the FormatGate or Drain training corpus — used for novelty-detection scoring.
+# NOTE: this dataset's Content column is intentionally semicolon-joined in the original?? No — commas inside Content are CSV-escaped as in source.
+LineId,Time,Program,Content,EventId,EventTemplate
+1,10.30 16:49:06,chrome.exe,proxy.cse.cuhk.edu.hk:5070 open through proxy proxy.cse.cuhk.edu.hk:5070 HTTPS,E2,<*>:<*> open through proxy <*>:<*> HTTPS
+4,10.30 16:49:07,chrome.exe,"proxy.cse.cuhk.edu.hk:5070 close, 0 bytes sent, 0 bytes received, lifetime 00:01",E8,"<*> close, <*> bytes<*>sent, <*> bytes<*>received, lifetime <*>"
+7,10.30 16:49:07,chrome.exe,proxy.cse.cuhk.edu.hk:5070 open through proxy proxy.cse.cuhk.edu.hk:5070 HTTPS,E2,<*>:<*> open through proxy <*>:<*> HTTPS
+8,10.30 16:49:07,chrome.exe,"proxy.cse.cuhk.edu.hk:5070 close, 403 bytes sent, 426 bytes received, lifetime <1 sec",E8,"<*> close, <*> bytes<*>sent, <*> bytes<*>received, lifetime <*>"
+11,10.30 16:49:08,chrome.exe,"proxy.cse.cuhk.edu.hk:5070 close, 451 bytes sent, 18846 bytes (18.4 KB) received, lifetime <1 sec",E8,"<*> close, <*> bytes<*>sent, <*> bytes<*>received, lifetime <*>"
+14,10.30 16:49:08,chrome.exe,"proxy.cse.cuhk.edu.hk:5070 close, 1190 bytes (1.16 KB) sent, 1671 bytes (1.63 KB) received, lifetime 00:02",E8,"<*> close, <*> bytes<*>sent, <*> bytes<*>received, lifetime <*>"
+17,10.30 16:49:09,chrome.exe,"proxy.cse.cuhk.edu.hk:5070 close, 1165 bytes (1.13 KB) sent, 3098 bytes (3.02 KB) received, lifetime 00:01",E8,"<*> close, <*> bytes<*>sent, <*> bytes<*>received, lifetime <*>"
+18,10.30 16:49:09,chrome.exe,proxy.cse.cuhk.edu.hk:5070 open through proxy proxy.cse.cuhk.edu.hk:5070 HTTPS,E2,<*>:<*> open through proxy <*>:<*> HTTPS
+19,10.30 16:49:09,chrome.exe,"proxy.cse.cuhk.edu.hk:5070 close, 1165 bytes (1.13 KB) sent, 815 bytes received, lifetime <1 sec",E8,"<*> close, <*> bytes<*>sent, <*> bytes<*>received, lifetime <*>"
+22,10.30 16:49:09,chrome.exe,"proxy.cse.cuhk.edu.hk:5070 close, 850 bytes sent, 10547 bytes (10.2 KB) received, lifetime 00:02",E8,"<*> close, <*> bytes<*>sent, <*> bytes<*>received, lifetime <*>"
+25,10.30 16:49:09,chrome.exe,proxy.cse.cuhk.edu.hk:5070 open through proxy proxy.cse.cuhk.edu.hk:5070 HTTPS,E2,<*>:<*> open through proxy <*>:<*> HTTPS
+28,10.30 16:49:09,chrome.exe,"proxy.cse.cuhk.edu.hk:5070 close, 19904 bytes (19.4 KB) sent, 27629 bytes (26.9 KB) received, lifetime 02:19",E8,"<*> close, <*> bytes<*>sent, <*> bytes<*>received, lifetime <*>"
+30,10.30 16:49:10,chrome.exe,"proxy.cse.cuhk.edu.hk:5070 close, 1118 bytes (1.09 KB) sent, 340 bytes received, lifetime <1 sec",E8,"<*> close, <*> bytes<*>sent, <*> bytes<*>received, lifetime <*>"
+33,10.30 16:49:10,chrome.exe,"proxy.cse.cuhk.edu.hk:5070 close, 1143 bytes (1.11 KB) sent, 365 bytes received, lifetime 00:01",E8,"<*> close, <*> bytes<*>sent, <*> bytes<*>received, lifetime <*>"
+36,10.30 16:49:10,chrome.exe,proxy.cse.cuhk.edu.hk:5070 open through proxy proxy.cse.cuhk.edu.hk:5070 HTTPS,E2,<*>:<*> open through proxy <*>:<*> HTTPS
+39,10.30 16:49:10,chrome.exe,"proxy.cse.cuhk.edu.hk:5070 close, 1268 bytes (1.23 KB) sent, 6274 bytes (6.12 KB) received, lifetime <1 sec",E8,"<*> close, <*> bytes<*>sent, <*> bytes<*>received, lifetime <*>"
+42,10.30 16:49:11,chrome.exe,proxy.cse.cuhk.edu.hk:5070 open through proxy proxy.cse.cuhk.edu.hk:5070 HTTPS,E2,<*>:<*> open through proxy <*>:<*> HTTPS
+45,10.30 16:49:11,chrome.exe,proxy.cse.cuhk.edu.hk:5070 open through proxy proxy.cse.cuhk.edu.hk:5070 HTTPS,E2,<*>:<*> open through proxy <*>:<*> HTTPS

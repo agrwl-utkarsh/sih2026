@@ -221,6 +221,12 @@ button:disabled {
 .mode-error { border-left-color: #f48771; }
 .mode-error .stat-value { color: #f48771; }
 
+.mode-template { border-left-color: var(--accent-cyan); }
+.mode-template .stat-value { color: var(--accent-cyan); }
+
+.mode-quarantine { border-left-color: var(--accent-yellow); }
+.mode-quarantine .stat-value { color: var(--accent-yellow); }
+
 /* Table */
 .fields-table {
     width: 100%;

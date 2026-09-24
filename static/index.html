@@ -54,6 +54,31 @@
                 </h2>
                 <pre id="cache-output">Cache is currently empty.</pre>
             </div>
+
+            <!-- Drain3 Template Tier -->
+            <div class="panel cache-inspector">
+                <h2>Template Tier (Drain3)
+                    <span id="tier-stats" style="font-size: 0.7rem; color: #94a3b8; font-weight: normal; margin-left: 0.5rem;"></span>
+                    <button id="refresh-templates-btn" style="width: auto; padding: 0.3rem 0.8rem; margin: 0; font-size: 0.75rem; float: right;">Refresh</button>
+                </h2>
+                <table class="fields-table">
+                    <thead>
+                        <tr><th>Template</th><th style="width: 5rem;">Count</th><th style="width: 6rem;">Rule</th><th style="width: 7rem;">Mode</th></tr>
+                    </thead>
+                    <tbody id="templates-body">
+                        <tr><td colspan="4" style="text-align:center; color:#94a3b8;">No templates mined yet — run some logs.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Novel Format Quarantine (scikit-learn gate) -->
+            <div class="panel cache-inspector">
+                <h2>Novel-Format Quarantine <span style="font-size: 0.7rem; color: #94a3b8; font-weight: normal;">(scikit-learn gate)</span>
+                    <span id="gate-stats" style="font-size: 0.7rem; color: #94a3b8; font-weight: normal; margin-left: 0.5rem;"></span>
+                    <button id="refresh-quarantine-btn" style="width: auto; padding: 0.3rem 0.8rem; margin: 0; font-size: 0.75rem; float: right;">Refresh</button>
+                </h2>
+                <div id="quarantine-output" style="font-size: 0.8rem; color: #94a3b8;">No novel templates seen.</div>
+            </div>
         </main>
     </div>
 

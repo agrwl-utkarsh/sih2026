@@ -1,0 +1,39 @@
+# Provenance: logpai/loghub @GitHub master — HDFS/HDFS_2k.log_structured.csv (Hadoop Distributed File System, data-day 081109-081110)
+# Chunks fetched: 0, 8 of 52 (2026-09-24, fetch_page tool). Boundary partial rows dropped. Comment lines (#) are non-data.
+# Subsampled (every 2nd row) within the long repeating E6/E11/E13/E3 stretches; all EventIds retain coverage.
+LineId,Date,Time,Pid,Level,Component,Content,EventId,EventTemplate
+1,081109,203615,148,INFO,dfs.DataNode$PacketResponder,PacketResponder 1 for block blk_38865049064139660 terminating,E10,PacketResponder <*> for block blk_<*> terminating
+3,081109,204005,35,INFO,dfs.FSNamesystem,BLOCK* NameSystem.addStoredBlock: blockMap updated: 10.251.73.220:50010 is added to blk_7128370237687728475 size 67108864,E6,BLOCK* NameSystem.addStoredBlock: blockMap updated: <*>:<*> is added to blk_<*> size <*>
+5,081109,204106,329,INFO,dfs.DataNode$PacketResponder,PacketResponder 2 for block blk_-6670958622368987959 terminating,E10,PacketResponder <*> for block blk_<*> terminating
+8,081109,204453,34,INFO,dfs.FSNamesystem,BLOCK* NameSystem.addStoredBlock: blockMap updated: 10.250.11.85:50010 is added to blk_2377150260128098806 size 67108864,E6,BLOCK* NameSystem.addStoredBlock: blockMap updated: <*>:<*> is added to blk_<*> size <*>
+10,081109,204655,556,INFO,dfs.DataNode$PacketResponder,Received block blk_3587508140051953248 of size 67108864 from /10.251.42.84,E11,Received block blk_<*> of size <*> from /<*>
+12,081109,204815,653,INFO,dfs.DataNode$DataXceiver,Receiving block blk_5792489080791696128 src: /10.251.30.6:33145 dest: /10.251.30.6:50010,E13,Receiving block blk_<*> src: /<*>:<*> dest: /<*>:<*>
+14,081109,204908,31,INFO,dfs.FSNamesystem,BLOCK* NameSystem.addStoredBlock: blockMap updated: 10.251.110.8:50010 is added to blk_8015913224713045110 size 67108864,E6,BLOCK* NameSystem.addStoredBlock: blockMap updated: <*>:<*> is added to blk_<*> size <*>
+16,081109,205035,28,INFO,dfs.FSNamesystem,BLOCK* NameSystem.allocateBlock: /user/root/rand/_temporary/_task_200811092030_0001_m_000590_0/part-00590. blk_-1727475099218615100,E7,BLOCK* NameSystem.allocateBlock: /<*>/part-<*>. blk_<*>
+18,081109,205157,752,INFO,dfs.DataNode$PacketResponder,Received block blk_9212264480425680329 of size 67108864 from /10.251.123.1,E11,Received block blk_<*> of size <*> from /<*>
+19,081109,205315,29,INFO,dfs.FSNamesystem,BLOCK* NameSystem.allocateBlock: /user/root/rand/_temporary/_task_200811092030_0001_m_000742_0/part-00742. blk_-7878121102358435702,E7,BLOCK* NameSystem.allocateBlock: /<*>/part-<*>. blk_<*>
+22,081109,205632,28,INFO,dfs.FSNamesystem,BLOCK* NameSystem.addStoredBlock: blockMap updated: 10.251.74.79:50010 is added to blk_-4794867979917102672 size 67108864,E6,BLOCK* NameSystem.addStoredBlock: blockMap updated: <*>:<*> is added to blk_<*> size <*>
+24,081109,205742,1001,INFO,dfs.DataNode$PacketResponder,Received block blk_-5861636720645142679 of size 67108864 from /10.251.70.211,E11,Received block blk_<*> of size <*> from /<*>
+27,081109,205754,952,INFO,dfs.DataNode$PacketResponder,Received block blk_8291449241650212794 of size 67108864 from /10.251.89.155,E11,Received block blk_<*> of size <*> from /<*>
+28,081109,205858,31,INFO,dfs.FSNamesystem,BLOCK* NameSystem.allocateBlock: /user/root/rand/_temporary/_task_200811092030_0001_m_000487_0/part-00487. blk_-5319073033164653435,E7,BLOCK* NameSystem.allocateBlock: /<*>/part-<*>. blk_<*>
+29,081109,205931,13,INFO,dfs.DataBlockScanner,Verification succeeded for blk_-4980916519894289629,E14,Verification succeeded for blk_<*>
+31,081109,210037,1084,INFO,dfs.DataNode$DataXceiver,Receiving block blk_-5009020203888190378 src: /10.251.199.19:52622 dest: /10.251.199.19:50010,E13,Receiving block blk_<*> src: /<*>:<*> dest: /<*>:<*>
+34,081109,210458,1278,INFO,dfs.DataNode$DataXceiver,Receiving block blk_2937758977269298350 src: /10.251.194.129:37476 dest: /10.251.194.129:50010,E13,Receiving block blk_<*> src: /<*>:<*> dest: /<*>:<*>
+318,081110,072121,7820,INFO,dfs.DataNode$DataXceiver,10.251.123.99:50010 Served block blk_5385121219895615240 to /10.251.71.146,E1,<*>:<*> Served block blk_<*> to /<*>
+319,081110,072124,7772,WARN,dfs.DataNode$DataXceiver,10.251.42.246:50010:Got exception while serving blk_-7658293778087733436 to /10.251.30.179:,E3,<*>:<*>:Got exception while serving blk_<*> to /<*>:
+321,081110,080555,8227,WARN,dfs.DataNode$DataXceiver,10.251.111.130:50010:Got exception while serving blk_3169060243663461885 to /10.251.214.32:,E3,<*>:<*>:Got exception while serving blk_<*> to /<*>:
+322,081110,080718,7850,INFO,dfs.DataNode$DataXceiver,10.250.10.100:50010 Served block blk_-3657665801189425193 to /10.250.10.100,E1,<*>:<*> Served block blk_<*> to /<*>
+325,081110,080847,8088,WARN,dfs.DataNode$DataXceiver,10.251.26.8:50010:Got exception while serving blk_-8522942048313632858 to /10.251.31.85:,E3,<*>:<*>:Got exception while serving blk_<*> to /<*>:
+328,081110,081044,8125,WARN,dfs.DataNode$DataXceiver,10.251.123.1:50010:Got exception while serving blk_-272707591443354058 to /10.251.198.33:,E3,<*>:<*>:Got exception while serving blk_<*> to /<*>:
+332,081110,081643,8095,INFO,dfs.DataNode$DataXceiver,10.251.195.52:50010 Served block blk_6655622109568310643 to /10.251.195.52,E1,<*>:<*> Served block blk_<*> to /<*>
+335,081110,082013,8326,INFO,dfs.DataNode$DataXceiver,10.251.43.115:50010 Served block blk_-7364557883931785608 to /10.251.43.115,E1,<*>:<*> Served block blk_<*> to /<*>
+338,081110,082702,8223,WARN,dfs.DataNode$DataXceiver,10.250.15.198:50010:Got exception while serving blk_-1851265222873801714 to /10.251.195.52:,E3,<*>:<*>:Got exception while serving blk_<*> to /<*>:
+341,081110,082954,8543,WARN,dfs.DataNode$DataXceiver,10.251.70.112:50010:Got exception while serving blk_4357276972386184626 to /10.251.74.79:,E3,<*>:<*>:Got exception while serving blk_<*> to /<*>:
+344,081110,083231,8530,INFO,dfs.DataNode$DataXceiver,10.250.10.176:50010 Served block blk_3797494971676497497 to /10.251.29.239,E1,<*>:<*> Served block blk_<*> to /<*>
+346,081110,083453,13,INFO,dfs.DataBlockScanner,Verification succeeded for blk_3141363517520802396,E14,Verification succeeded for blk_<*>
+348,081110,085933,13,INFO,dfs.DataBlockScanner,Verification succeeded for blk_-4117999745005013424,E14,Verification succeeded for blk_<*>
+351,081110,091657,8720,WARN,dfs.DataNode$DataXceiver,10.251.70.211:50010:Got exception while serving blk_424255210146453297 to /10.251.203.179:,E3,<*>:<*>:Got exception while serving blk_<*> to /<*>:
+354,081110,092151,8601,WARN,dfs.DataNode$DataXceiver,10.251.126.22:50010:Got exception while serving blk_1686195200514944346 to /10.250.6.223:,E3,<*>:<*>:Got exception while serving blk_<*> to /<*>:
+358,081110,093643,13,INFO,dfs.DataBlockScanner,Verification succeeded for blk_9188832735514090334,E14,Verification succeeded for blk_<*>
+359,081110,093831,8571,INFO,dfs.DataNode$DataXceiver,10.251.106.10:50010 Served block blk_2273334621242106674 to /10.251.106.10,E1,<*>:<*> Served block blk_<*> to /<*>
+360,081110,094019,8808,WARN,dfs.DataNode$DataXceiver,10.251.125.193:50010:Got exception while serving blk_3790492230047189408 to /10.251.199.159:,E3,<*>:<*>:Got exception while serving blk_<*> to /<*>:

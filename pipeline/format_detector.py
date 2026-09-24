@@ -166,7 +166,7 @@ class DiscoveryEngine:
             logger.info("LLM API KEY configured: %s", current_state)
             self._last_logged_key_state = current_state
 
-    def run_inference(self, log_entry: str, features: dict) -> dict:
+    def run_inference(self, log_entry: str, features: dict, force_heuristic: bool = False) -> dict:
         self._log_key_status()
         delay_str = os.environ.get("DEMO_DISCOVERY_DELAY_MS", "0")
         try:
@@ -175,6 +175,14 @@ class DiscoveryEngine:
             delay = 0.0
         if delay > 0:
             time.sleep(delay)
+
+        if force_heuristic:
+            rule = self._heuristic_fallback(features, log_entry)
+            rule["llm_error"] = (
+                "Deferred: template quarantined by the novelty gate "
+                "(see /api/logs/quarantine); one discovery call per cluster runs on graduation"
+            )
+            return rule
 
         errors = []
         gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
