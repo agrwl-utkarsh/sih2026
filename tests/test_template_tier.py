@@ -168,3 +168,20 @@ def test_console_and_explorer_pages_are_served():
     # the shared pieces the explorer depends on
     for symbol in ("highlightJSON", "recordNotes", "saveRun", "getRun"):
         assert symbol in ui.text
+
+
+def test_console_inspector_shows_only_fingerprints():
+    """The runtime inspector is the fingerprint cache. Family, template,
+    quarantine and health tabs are not part of the console."""
+    html = client.get("/").text
+    assert 'id="cache-output"' in html
+    assert 'id="count-fingerprint"' in html
+    assert "fingerprints" in html
+    for gone in (
+        'id="family-output"',
+        'id="templates-body"',
+        'id="quarantine-output"',
+        'id="health-output"',
+        "data-tab=",
+    ):
+        assert gone not in html

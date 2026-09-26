@@ -7,7 +7,6 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
-  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
   const fetchJSON = async (url, opts) => {
     try {
@@ -48,20 +47,9 @@
       lat: $('stat-latency'),
       saved: $('stat-saved'),
       lastrun: $('stat-lastrun'),
-      // inspector
-      familyOut: $('family-output'),
+      // inspector — fingerprint cache only
       cacheOut: $('cache-output'),
-      healthOut: $('health-output'),
-      tierStats: $('tier-stats'),
-      templatesBody: $('templates-body'),
-      quarantineOut: $('quarantine-output'),
-      gateStats: $('gate-stats'),
-      counts: {
-        family: $('count-family'),
-        fingerprint: $('count-fingerprint'),
-        templates: $('count-templates'),
-        quarantine: $('count-quarantine')
-      }
+      fingerprintCount: $('count-fingerprint')
     };
 
     const totals = { total: 0, cached: 0, disc: 0, latSum: 0 };
@@ -247,94 +235,25 @@
 
     const scrollToBottom = () => { els.stream.scrollTop = els.stream.scrollHeight; };
 
-    /* ── inspector ─────────────────────────────────────── */
+    /* ── inspector: fingerprint cache only ─────────────── */
     const fetchHealth = async () => {
       const h = await fetchJSON('/api/health');
       if (!h) return;
-      const families = h.family_cache?.families_learned ?? 0;
-      els.fams.textContent = num(families);
-      els.counts.family.textContent = num(families);
-
-      els.healthOut.innerHTML = highlightJSON(h);
+      els.fams.textContent = num(h.family_cache?.families_learned ?? 0);
     };
 
     const refreshCache = async () => {
       const d = await fetchJSON('/api/logs/cache');
       if (!d) return;
-      const fam = d.family_cache || {};
       const fps = Array.isArray(d.cache) ? d.cache : [];
-      els.counts.fingerprint.textContent = num(fps.length);
-      els.familyOut.innerHTML = highlightJSON(fam);
-      els.cacheOut.innerHTML = highlightJSON(d.cache ?? []);
-    };
-
-    const refreshTemplates = async () => {
-      const t = await fetchJSON('/api/logs/templates');
-      if (!t) return;
-      const tpls = t.templates || [];
-      els.counts.templates.textContent = num(t.clusters ?? 0);
-      els.tierStats.textContent =
-        `${num(t.clusters)} clusters · ${num(t.rules_learned)} rules · ${t.rule_backend ?? '—'}` +
-        `${t.enforce_mode ? ' · ENFORCE' : ' · shadow'}`;
-
-      els.templatesBody.innerHTML = tpls.length
-        ? tpls.map((tpl) => `
-            <tr>
-              <td title="cluster #${esc(tpl.cluster_id)}">${esc(tpl.template)}</td>
-              <td class="num">${num(tpl.size)}</td>
-              <td class="${tpl.has_rule ? 'has-rule' : 'no-rule'}">${tpl.has_rule ? 'rule ✓' : '—'}</td>
-            </tr>`).join('')
-        : `<tr><td colspan="3" class="dim">no templates mined yet</td></tr>`;
-    };
-
-    const refreshQuarantine = async () => {
-      const q = await fetchJSON('/api/logs/quarantine');
-      if (!q) return;
-      const items = q.items || [];
-      const novelCount = num(q.novel_templates ?? 0);
-      els.counts.quarantine.textContent = novelCount;
-      els.gateStats.textContent =
-        `${novelCount} novel format${Number(q.novel_templates) === 1 ? '' : 's'} · ${q.enforce_mode ? 'enforce' : 'shadow mode'}`;
-
-      els.quarantineOut.classList.toggle('dim', items.length === 0);
-      els.quarantineOut.innerHTML = items.length
-        ? items.slice(0, 20).map((item) => {
-            const g = item.gate || {};
-            const seen = Number(item.count) || 0;
-            const sightings = `${num(seen)} sighting${seen === 1 ? '' : 's'}`;
-            const family = g.family_guess
-              ? ` · ${g.novel ? 'closest known family' : 'matched family'}: ${esc(g.family_guess)}`
-              : '';
-            const evidence = g.distance == null
-              ? 'novelty score unavailable'
-              : `novelty distance ${esc(g.distance)}${g.threshold == null ? '' : ` · threshold ${esc(g.threshold)}`}`;
-            return `
-              <div class="q-item">
-                <div class="q-head">
-                  <span class="q-flag ${g.novel ? 'novel' : 'watched'}" title="${evidence}">${g.novel ? 'novel' : 'known'}</span>
-                  <span class="q-meta">${sightings}${family}</span>
-                  — <span class="q-tpl">${esc(item.template ?? '')}</span>
-                </div>
-                <pre class="q-sample">${esc((item.samples || [])[0] || '—')}</pre>
-              </div>`;
-          }).join('')
-        : 'no novel templates recorded';
+      els.fingerprintCount.textContent = num(fps.length);
+      els.cacheOut.innerHTML = highlightJSON(fps);
     };
 
     const refreshAll = () => {
       fetchHealth();
       refreshCache();
-      refreshTemplates();
-      refreshQuarantine();
     };
-
-    /* ── inspector tabs ────────────────────────────────── */
-    $$('.tab').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        $$('.tab').forEach((b) => b.classList.toggle('is-active', b === btn));
-        $$('.tab-pane').forEach((p) => p.classList.toggle('is-active', p.id === `tab-${btn.dataset.tab}`));
-      });
-    });
 
     els.refreshInspector.addEventListener('click', () => {
       els.refreshInspector.disabled = true;

@@ -45,7 +45,7 @@ All logs are mapped to the following normalized JSON schema:
 
 ## API Endpoints
 
-- **`GET /`**: Serves the ingest console (editor + plain-language run summary and parsed-result cards + Cache Inspector + Template Tier + Quarantine panels).
+- **`GET /`**: Serves the ingest console (editor + plain-language run summary and parsed-result cards + fingerprint cache inspector).
 - **`GET /records`**: Serves the **record explorer** — the per-record normalized JSON view. The console's ingests are captured in the browser (`localStorage`, newest 3 runs) and read back by this page. Query params: `?run=<id>` picks a captured run, `?i=<n>` deep-links to one record. The page paginates 200 records at a time, filters by mode/search across the whole run, and offers copy-JSON / download-JSONL.
 - **`POST /api/logs/ingest`**: Main ingestion endpoint. Accepts `{"logs": ["log1", "log2", ...]}`. Returns parsed and normalized logs. Each result includes `mode` (`Cached`/`Template-Rule`/`Quarantined`/`Discovery`/`Error`), `inferred_by` (`llm`/`heuristic`), `llm_error`, the Drain3 `template`/`cluster_id`, and the gate verdict (`gate.novel`, `gate.distance`, `gate.family_guess`).
 - **`GET /api/logs/cache`**: Exposes the active Tier-1 fingerprint cache rules for inspection.
@@ -60,7 +60,7 @@ The UI is deliberately split so a large ingest remains responsive while its outc
 
 | Page | Owns | Renders |
 |---|---|---|
-| `/` (console) | ingest, telemetry, cache/template/quarantine inspector | human-readable run summary + compact cards for each result |
+| `/` (console) | ingest, telemetry, fingerprint cache inspector | human-readable run summary + compact cards for each result |
 | `/records` (explorer) | the normalized JSON | one page of 200 list rows + a single detail panel for the selected record |
 
 - **Hand-off**: every ingest run is captured in the browser (`localStorage`, newest 3 runs, ~3.5 MB budget) by `static/ui.js`. The explorer reads that store back by id — no server round-trip, nothing leaves the browser.
@@ -161,7 +161,7 @@ This script will start the FastAPI backend and send a representative sample of S
 
 ### Run tests
 ```bash
-pytest tests/ -v        # 62 tests
+pytest tests/ -v        # 63 tests
 ```
 
 ### Retrain the format gate (scikit-learn artifact)
