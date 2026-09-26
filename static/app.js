@@ -20,7 +20,7 @@
   /* ── shared toolkit ──────────────────────────────────── */
   /* esc / escText / clip / num / highlightJSON / MODE_CLASS / Store live in
      ui.js so the console and the record explorer cannot drift apart. */
-  const { esc, clip, num, highlightJSON, modeClass, Store } = window.ULP;
+  const { esc, num, highlightJSON, modeClass, Store } = window.ULP;
 
   document.addEventListener('DOMContentLoaded', () => {
 
@@ -42,8 +42,7 @@
       disc: $('stat-discovery'),
       saved: $('stat-saved'),
       // inspector — fingerprint cache only
-      cacheOut: $('cache-output'),
-      fingerprintCount: $('count-fingerprint')
+      cacheOut: $('cache-output')
     };
 
     const totals = { total: 0, cached: 0, disc: 0 };
@@ -165,7 +164,6 @@
           Quarantined: ['Held for review', 'This unfamiliar format is being checked before a rule is learned.'],
           Error: ['Could not parse', 'Review the error details for this record.']
         }[mode] || [mode, 'Record processed.'];
-        const message = norm.message || norm.raw || r.error || 'No message content';
         const time = norm.timestamp ? String(norm.timestamp).replace('T', ' ').replace(/Z$/, ' UTC') : '';
         const severity = norm.severity && norm.severity !== 'unknown' ? String(norm.severity) : '';
         const source = norm.source && norm.source !== 'unknown' ? String(norm.source) : '';
@@ -178,8 +176,7 @@
         return `<article class="result-card m-${cls}" data-i="${i}" ${href ? `tabindex="0" role="link" aria-label="Open details for record ${i + 1}"` : ''}>
           <div class="result-index">${String(i + 1).padStart(2, '0')}</div>
           <div class="result-main">
-            <div class="result-card-top"><span class="mode-tag ${cls}">${esc(details[0])}</span>${severity ? `<span class="severity-pill sev-${esc(severity.toLowerCase())}">${esc(severity)}</span>` : ''}<span class="result-format">${esc(r.family || r.format || 'log record')}</span><span class="result-latency">${esc(r.latency_ms ?? '—')} ms</span></div>
-            <p class="result-message" title="${esc(message)}">${esc(clip(message, 260))}</p>
+            <div class="result-card-top"><span class="mode-tag ${cls}">${esc(details[0])}</span>${severity ? `<span class="severity-pill">${esc(severity)}</span>` : ''}<span class="result-latency">${esc(r.latency_ms ?? '—')} ms</span></div>
             ${meta ? `<div class="result-meta">${meta}</div>` : ''}${fields}
             <p class="result-why">${esc(details[1])}</p>
           </div>
@@ -222,6 +219,46 @@
       });
     };
 
+    const appendRunGroup = (records, run, wallMs, label) => {
+      const group = document.createElement('section');
+      group.className = 'run-group';
+      if (run) group.dataset.run = run.id;
+      group.dataset.label = label;
+
+      const divider = document.createElement('div');
+      divider.className = 'run-divider';
+      divider.innerHTML = `<span>${esc(label)}</span>`;
+      group.appendChild(divider);
+      group.appendChild(renderSummary(records, run, wallMs));
+      els.stream.appendChild(group);
+      return divider;
+    };
+
+    const restoreStream = () => {
+      const runs = Store.getRuns().reverse();
+      if (!runs.length) {
+        renderEmpty();
+        return;
+      }
+
+      els.stream.replaceChildren();
+      runCount = runs.length;
+      runs.forEach((run, index) => {
+        const records = Array.isArray(run.records) ? run.records : [];
+        const count = records.length;
+        const wallMs = Number(run.wall_ms) || 0;
+        const label = run.label || `run #${index + 1} · ${num(count)} record${count === 1 ? '' : 's'} · ${wallMs.toFixed(1)}ms`;
+        appendRunGroup(records, run, wallMs, label);
+        records.forEach((record) => {
+          totals.total += 1;
+          if (record.mode === 'Cached') totals.cached += 1;
+          if (record.mode === 'Discovery') totals.disc += 1;
+        });
+      });
+      pruneRunGroups();
+      paintTelemetry();
+    };
+
     const scrollToBottom = () => { els.stream.scrollTop = els.stream.scrollHeight; };
 
     /* ── inspector: fingerprint cache only ─────────────── */
@@ -229,7 +266,6 @@
       const d = await fetchJSON('/api/logs/cache');
       if (!d) return;
       const fps = Array.isArray(d.cache) ? d.cache : [];
-      els.fingerprintCount.textContent = num(fps.length);
       els.cacheOut.innerHTML = highlightJSON(fps);
     };
 
@@ -244,6 +280,7 @@
 
     /* ── stream controls ───────────────────────────────── */
     els.clearStream.addEventListener('click', () => {
+      Store.clearRuns();
       renderEmpty();
       runCount = 0;
       resetTotals();
@@ -320,24 +357,11 @@
 
         pending.remove();
 
-        // Hand the whole run to the explorer page before rendering anything.
-        const run = Store.saveRun({ records, lines: logs, wallMs: wall });
-
+        // Persist each run so the console can restore it after visiting the explorer.
         runCount += 1;
         const label = `run #${runCount} · ${num(records.length)} record${records.length === 1 ? '' : 's'} · ${wall.toFixed(1)}ms`;
-        const group = document.createElement('section');
-        group.className = 'run-group';
-        if (run) group.dataset.run = run.id;
-        group.dataset.label = label;
-
-        const divider = document.createElement('div');
-        divider.className = 'run-divider';
-        divider.innerHTML = `<span>${esc(label)}</span>`;
-        group.appendChild(divider);
-
-        group.appendChild(renderSummary(records, run, wall));
-
-        els.stream.appendChild(group);
+        const run = Store.saveRun({ records, lines: logs, wallMs: wall, label });
+        const divider = appendRunGroup(records, run, wall, label);
         pruneRunGroups();
 
         records.forEach((r) => {
@@ -377,7 +401,7 @@
     });
 
     /* ── boot ──────────────────────────────────────────── */
-    renderEmpty();
+    restoreStream();
     syncGutter();
     paintTelemetry();
     refreshCache();

@@ -32,11 +32,11 @@
         <div class="telemetry" id="telemetry">
             <div class="tcell"><span class="tlabel">total</span><span class="tvalue" id="stat-total">0</span></div>
             <div class="tsep"></div>
-            <div class="tcell"><span class="tlabel">cached</span><span class="tvalue t-ok" id="stat-cached">0</span></div>
+            <div class="tcell"><span class="tlabel">cached</span><span class="tvalue" id="stat-cached">0</span></div>
             <div class="tsep"></div>
-            <div class="tcell"><span class="tlabel">discovery</span><span class="tvalue t-warn" id="stat-discovery">0</span></div>
+            <div class="tcell"><span class="tlabel">discovery</span><span class="tvalue" id="stat-discovery">0</span></div>
             <div class="tsep"></div>
-            <div class="tcell"><span class="tlabel">llm saved</span><span class="tvalue t-info" id="stat-saved">0%</span></div>
+            <div class="tcell"><span class="tlabel">llm saved</span><span class="tvalue" id="stat-saved">0%</span></div>
         </div>
 
         <!-- ── workspace: editor + stream ─────────────────────────── -->
@@ -109,18 +109,11 @@
         <section class="pane pane-inspector">
             <div class="pane-head">
                 <h2 class="pane-title">runtime inspector</h2>
-                <div class="pane-tools">
-                    <span class="inspector-count" id="count-fingerprint">0</span>
-                </div>
             </div>
             <div class="inspector-body">
                 <pre class="json" id="cache-output">loading…</pre>
             </div>
         </section>
-
-        <footer class="footer">
-            <span>sih 2026 · deterministic two-tier pipeline · one llm call per family, cached forever</span>
-        </footer>
     </div>
 
     <script src="/static/ui.js"></script>
