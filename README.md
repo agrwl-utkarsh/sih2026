@@ -64,7 +64,7 @@ The UI is deliberately split so a large ingest remains responsive while its outc
 | `/records` (explorer) | the normalized JSON | one page of 200 list rows + a single detail panel for the selected record |
 
 - **Hand-off**: every ingest run is captured in the browser (`localStorage`, newest 3 runs, ~3.5 MB budget) by `static/ui.js`. The explorer reads that store back by id — no server round-trip, nothing leaves the browser.
-- **Entry points**: the *Explore full records* action in a run summary, the explorer link in the results header, the titlebar link, or any result card (each deep-links to its record with `?i=`). After a flush, the empty state offers the last captured run.
+- **Entry points**: the *open full records* action in a run summary, the titlebar link, or any result card (each deep-links to its record with `?i=`).
 - **Explorer features**: search across the whole run (not just the visible page), mode chips with counts, ↑/↓/PageUp/PageDown stepping, `/` to focus search, copy-normalized-JSON, download the run as JSONL.
 - Only the newest 3 console runs stay expanded; older runs collapse to a one-line link to keep long demo sessions responsive.
 
@@ -161,7 +161,7 @@ This script will start the FastAPI backend and send a representative sample of S
 
 ### Run tests
 ```bash
-pytest tests/ -v        # 63 tests
+pytest tests/ -v        # 64 tests
 ```
 
 ### Retrain the format gate (scikit-learn artifact)

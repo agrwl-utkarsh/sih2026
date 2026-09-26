@@ -36,13 +36,7 @@
             <div class="tsep"></div>
             <div class="tcell"><span class="tlabel">discovery</span><span class="tvalue t-warn" id="stat-discovery">0</span></div>
             <div class="tsep"></div>
-            <div class="tcell"><span class="tlabel">families</span><span class="tvalue" id="stat-families">0</span></div>
-            <div class="tsep"></div>
-            <div class="tcell"><span class="tlabel">avg lat</span><span class="tvalue" id="stat-latency">—</span></div>
-            <div class="tsep"></div>
             <div class="tcell"><span class="tlabel">llm saved</span><span class="tvalue t-info" id="stat-saved">0%</span></div>
-            <div class="tsep"></div>
-            <div class="tcell"><span class="tlabel">last run</span><span class="tvalue t-dim" id="stat-lastrun">—</span></div>
         </div>
 
         <!-- ── workspace: editor + stream ─────────────────────────── -->
@@ -56,20 +50,20 @@
                             <span class="select-label">sample</span>
                             <select id="sample-select">
                                 <option value="">— load fixture —</option>
-                                <option value='{"timestamp": "2026-09-13T10:00:00Z", "level": "error", "message": "Database connection failed", "host": "db-server-01"}'>json · structured</option>
-                                <option value="2026-09-13T10:15:30Z,ERROR,Connection reset by peer,app-server-02,pid=992">csv · delimited</option>
-                                <option value="2026-09-13T10:20:00Z | CRITICAL | PaymentGateway | Transaction txn-8829 failed due to timeout after 3000ms">pipe · delimited</option>
-                                <option value="2026-09-19 14:32:10.123 [main] INFO org.springframework.boot.Startup - Started Application in 2.5s">java · spring boot</option>
-                                <option value="INFO:root:Connected to database successfully">python · stdlib logger</option>
-                                <option value="2026-09-19T14:32:10.123456789Z stdout F Starting web server on :8080">kubernetes · CRI</option>
-                                <option value='2026/09/19 14:32:10 [error] 1234#0: *1 open() "/favicon.ico" failed, client: 192.168.1.10'>nginx · error</option>
-                                <option value="<165>1 2026-09-19T14:32:10.003Z mymachine.example.com evntslog 1234 ID47 - An application event log entry">syslog · rfc5424</option>
-                                <option value="Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8">syslog · rfc3164</option>
-                                <option value="CEF:0|SecurityCompany|Firewall|1.0|100|Packet dropped|5|src=10.0.0.1 dst=10.0.0.2 spt=1234 dpt=80">cef · firewall</option>
-                                <option value='ts=2026-09-19T14:32:10.123Z level=error caller=main.go:42 msg="crash detected" err="null pointer" thread_id=9'>logfmt · key-value</option>
-                                <option value="2026-09-19 14:32:10.123 UTC [1234] postgres@mydb LOG: duration: 12.345 ms statement: SELECT * FROM users;">postgres · server</option>
-                                <option value="Failed password for invalid user admin from 192.168.1.105 port 54321 ssh2">ssh · auth failure</option>
-                                <option value='192.168.1.100 - john [19/Sep/2026:13:24:00 +0000] "GET /index.html HTTP/1.1" 200 4321 "https://google.com" "Mozilla/5.0"'>apache · combined</option>
+                                <option value='{"timestamp": "2026-09-13T10:00:00Z", "level": "error", "message": "Database connection failed", "host": "db-server-01"}&#10;{"timestamp": "2026-09-13T10:00:01Z", "level": "warning", "message": "Retrying connection", "host": "db-server-01"}&#10;{"timestamp": "2026-09-13T10:00:02Z", "level": "info", "message": "Connection restored", "host": "db-server-02"}'>json · structured</option>
+                                <option value="2026-09-13T10:15:30Z,ERROR,Connection reset by peer,app-server-02,pid=992&#10;2026-09-13T10:15:31Z,WARNING,Timeout waiting for response,app-server-03,pid=100&#10;2026-09-13T10:15:32Z,INFO,Connection re-established,app-server-02,pid=993">csv · delimited</option>
+                                <option value="2026-09-13T10:20:00Z | CRITICAL | PaymentGateway | Transaction txn-8829 failed due to timeout after 3000ms&#10;2026-09-13T10:20:01Z | ERROR | PaymentGateway | Transaction txn-8830 declined by issuer&#10;2026-09-13T10:20:02Z | INFO | PaymentGateway | Transaction txn-8831 settled">pipe · delimited</option>
+                                <option value="2026-09-19 14:32:10.123 [main] INFO org.springframework.boot.Startup - Started Application in 2.5s&#10;2026-09-19 14:32:11.456 [http-nio-8080-exec-1] WARN org.springframework.web.servlet.DispatcherServlet - No mapping for GET /health&#10;2026-09-19 14:32:12.789 [http-nio-8080-exec-2] ERROR org.hibernate.engine.jdbc.spi.SqlExceptionHelper - Connection refused">java · spring boot</option>
+                                <option value="INFO:root:Connected to database successfully&#10;WARNING:root:Pool exhausted, waiting for a connection&#10;ERROR:db.pool:Failed to checkout connection after 3 attempts">python · stdlib logger</option>
+                                <option value="2026-09-19T14:32:10.123456789Z stdout F Starting web server on :8080&#10;2026-09-19T14:32:11.123456789Z stdout F Listening on 0.0.0.0:8080&#10;2026-09-19T14:32:12.123456789Z stderr F Health check failed for /ready">kubernetes · CRI</option>
+                                <option value='2026/09/19 14:32:10 [error] 1234#0: *1 open() "/favicon.ico" failed, client: 192.168.1.10&#10;2026/09/19 14:32:11 [warn] 1234#0: *2 upstream timed out, client: 192.168.1.11&#10;2026/09/19 14:32:12 [error] 1234#0: *3 connect() failed (111: Connection refused), client: 10.0.0.8'>nginx · error</option>
+                                <option value="<165>1 2026-09-19T14:32:10.003Z mymachine.example.com evntslog 1234 ID47 - An application event log entry&#10;<165>1 2026-09-19T14:32:11.003Z mymachine.example.com evntslog 1234 ID48 - Configuration reloaded&#10;<131>1 2026-09-19T14:32:12.003Z mymachine.example.com evntslog 1235 ID49 - Disk usage exceeded 90 percent">syslog · rfc5424</option>
+                                <option value="Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8&#10;Oct 11 22:14:16 mymachine sshd[1234]: Accepted publickey for admin from 10.0.0.5 port 22 ssh2&#10;Oct 11 22:14:17 mymachine cron[88]: (root) CMD (/usr/lib/sa/sa1 1 1)">syslog · rfc3164</option>
+                                <option value="CEF:0|SecurityCompany|Firewall|1.0|100|Packet dropped|5|src=10.0.0.1 dst=10.0.0.2 spt=1234 dpt=80&#10;CEF:0|SecurityCompany|Firewall|1.0|101|Packet allowed|3|src=10.0.0.4 dst=10.0.0.2 spt=443 dpt=443&#10;CEF:0|SecurityCompany|Firewall|1.0|200|Login failed|7|src=192.168.1.50 dst=10.0.0.2 suser=admin">cef · firewall</option>
+                                <option value='ts=2026-09-19T14:32:10.123Z level=error caller=main.go:42 msg="crash detected" err="null pointer" thread_id=9&#10;ts=2026-09-19T14:32:11.123Z level=info caller=main.go:18 msg="server started" addr=":8080" thread_id=1&#10;ts=2026-09-19T14:32:12.123Z level=warn caller=db.go:77 msg="slow query" duration_ms=842 thread_id=4'>logfmt · key-value</option>
+                                <option value="2026-09-19 14:32:10.123 UTC [1234] postgres@mydb LOG: duration: 12.345 ms statement: SELECT * FROM users;&#10;2026-09-19 14:32:11.456 UTC [1234] postgres@mydb ERROR: relation orders does not exist&#10;2026-09-19 14:32:12.789 UTC [1235] postgres@mydb LOG: connection received: host=10.0.0.8">postgres · server</option>
+                                <option value="Failed password for invalid user admin from 192.168.1.105 port 54321 ssh2&#10;Failed password for invalid user root from 10.0.0.9 port 22 ssh2&#10;Accepted password for user deploy from 10.0.0.4 port 22 ssh2">ssh · auth failure</option>
+                                <option value='192.168.1.100 - john [19/Sep/2026:13:24:00 +0000] "GET /index.html HTTP/1.1" 200 4321 "https://google.com" "Mozilla/5.0"&#10;192.168.1.101 - jane [19/Sep/2026:13:24:01 +0000] "POST /api/login HTTP/1.1" 401 128 "-" "curl/8.0"&#10;10.0.0.5 - - [19/Sep/2026:13:24:02 +0000] "GET /health HTTP/1.1" 200 15 "-" "kube-probe/1.28"'>apache · combined</option>
                             </select>
                         </label>
                     </div>
@@ -97,7 +91,6 @@
                     <button id="process-btn" class="btn btn-primary">
                         <span class="btn-key">▶</span><span id="process-label">run ingest</span>
                     </button>
-                    <button id="clear-btn" class="btn btn-ghost">clear buffer</button>
                 </div>
             </section>
 
@@ -105,8 +98,6 @@
                 <div class="pane-head">
                     <h2 class="pane-title">results</h2>
                     <div class="pane-tools">
-                        <span class="pane-hint" id="results-hint">Your parsed logs will appear here</span>
-                        <a class="btn btn-mini" href="/records" title="Open the record explorer">explorer →</a>
                         <button id="clear-stream-btn" class="btn btn-mini">flush</button>
                     </div>
                 </div>
@@ -119,9 +110,7 @@
             <div class="pane-head">
                 <h2 class="pane-title">runtime inspector</h2>
                 <div class="pane-tools">
-                    <span class="pane-hint" id="inspector-hint">fingerprints · tier-1 regex fast path · 500 LRU</span>
                     <span class="inspector-count" id="count-fingerprint">0</span>
-                    <button id="refresh-inspector-btn" class="btn btn-mini">refresh</button>
                 </div>
             </div>
             <div class="inspector-body">
