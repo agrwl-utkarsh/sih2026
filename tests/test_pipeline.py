@@ -12,6 +12,8 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def clear_cache():
     parser.cache.clear()
+    parser.family_cache.clear()
+    parser._parsed_fps.clear()
     template_tier.reset()
     discovery_engine._skip_gemini = False
 
@@ -221,13 +223,19 @@ def test_18_llm_testing(mock_post):
         }]
     }
     mock_post.return_value = mock_resp
-    
+
     # Mock LLM Success
     res = client.post("/api/logs/ingest", json={"logs": ["a | b | c"]})
     data = res.json()["processed_logs"][0]
     assert data["inferred_by"] == "llm"
     assert data["format"] == "Pipe-Delimited"
-    
+
+    # Clear family cache so next log of same family actually hits LLM again
+    # (deterministic family cache would otherwise short-circuit)
+    parser.family_cache.clear()
+    parser.cache.clear()
+    parser._parsed_fps.clear()
+
     # Mock LLM Invalid method -> fallback
     mock_resp.json.return_value = {
         "candidates": [{
@@ -239,7 +247,11 @@ def test_18_llm_testing(mock_post):
     res = client.post("/api/logs/ingest", json={"logs": ["d | e | f | g"]})
     data = res.json()["processed_logs"][0]
     assert data["inferred_by"] == "heuristic"
-    
+
+    parser.family_cache.clear()
+    parser.cache.clear()
+    parser._parsed_fps.clear()
+
     # Mock Network Error
     mock_post.side_effect = Exception("network")
     res = client.post("/api/logs/ingest", json={"logs": ["h | i | j | k | l"]})
@@ -712,6 +724,11 @@ def test_43_groq_reasoning_effort_only_for_gpt_oss(mock_post):
     sent = mock_post.call_args.kwargs.get("json", {})
     assert sent["model"] == "openai/gpt-oss-20b"
     assert sent["reasoning_effort"] == "low"
+
+    # Clear family cache so second family (also csv) actually triggers LLM again
+    parser.family_cache.clear()
+    parser.cache.clear()
+    parser._parsed_fps.clear()
 
     # A non-reasoning Groq model must not get reasoning_effort (Groq 400s on it)
     with patch.dict("os.environ", {"GROQ_MODEL": "qwen/qwen3-32b"}):

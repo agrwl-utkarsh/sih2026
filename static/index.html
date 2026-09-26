@@ -3,120 +3,218 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Log Pre-processing Pipeline</title>
+    <title>Universal Log Pipeline — SIH 2026</title>
     <link rel="stylesheet" href="/static/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Universal Log Pre-processing Pipeline</h1>
-            <p>Two-Tier Discovery & Execution Architecture (SIH26)</p>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <div class="logo">◉</div>
+                <div>
+                    <h1>Universal Log Pipeline</h1>
+                    <p>Deterministic format learning • One LLM call per family, cached forever</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div id="health-badge" class="health-badge loading">Checking system…</div>
+            </div>
         </header>
 
-        <main>
-            <!-- 1. Input Section -->
-            <div class="panel input-section">
-                <h2>Raw Log Input</h2>
-                <div class="sample-selector">
-                    <label for="sample-select">Load a sample format:</label>
-                    <select id="sample-select">
-                        <option value="">-- Select a sample log (or paste your own) --</option>
-                        <option value='{"timestamp": "2026-09-13T10:00:00Z", "level": "error", "message": "Database connection failed", "host": "db-server-01"}'>JSON (Structured)</option>
-                        <option value="2026-09-19 14:32:10.123 [main] INFO org.springframework.boot.Startup - Started Application in 2.5s">Java / Spring Boot Application</option>
-                        <option value="INFO:root:Connected to database successfully">Python Standard Logger</option>
-                        <option value="2026-09-19T14:32:10.123456789Z stdout F Starting web server on :8080">Kubernetes / CRI Container Log</option>
-                        <option value='2026/09/19 14:32:10 [error] 1234#0: *1 open() "/favicon.ico" failed, client: 192.168.1.10'>Nginx Server Error Log</option>
-                        <option value="<165>1 2026-09-19T14:32:10.003Z mymachine.example.com evntslog 1234 ID47 - An application event log entry">Modern RFC 5424 Syslog</option>
-                        <option value="Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8">Syslog RFC 3164 (BSD)</option>
-                        <option value="CEF:0|SecurityCompany|Firewall|1.0|100|Packet dropped|5|src=10.0.0.1 dst=10.0.0.2 spt=1234 dpt=80">CEF (ArcSight / SIEM Firewall)</option>
-                        <option value='ts=2026-09-19T14:32:10.123Z level=error caller=main.go:42 msg="crash detected" err="null pointer" thread_id=9'>Logfmt / Key-Value</option>
-                        <option value="2026-09-19 14:32:10.123 UTC [1234] postgres@mydb LOG: duration: 12.345 ms statement: SELECT * FROM users;">PostgreSQL Database Log</option>
-                        <option value="Failed password for invalid user admin from 192.168.1.105 port 54321 ssh2">Unstructured SSH Auth Failure</option>
-                        <option value='192.168.1.100 - john [19/Sep/2026:13:24:00 +0000] "GET /index.html HTTP/1.1" 200 4321 "https://google.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"'>Web Access / Apache & Nginx (Combined Log)</option>
-                        <option value="2026-09-13T10:15:30Z,ERROR,Connection reset by peer,app-server-02,pid=992">CSV / Delimited</option>
-                        <option value="2026-09-13T10:20:00Z | CRITICAL | PaymentGateway | Transaction txn-8829 failed due to timeout after 3000ms">Custom (Pipe-Delimited)</option>
-                        <option value="Connection refused from 192.168.1.5 on port 22">Generic Unstructured Network</option>
-                        <option value="##[2026-09-13]<node-99>{temp:87.2C}(status=OK)">Custom Embedded Format</option>
-                        <option value="2026-06-14 10:15:32 ERROR [MainThread] Connection timeout while accessing database: host=db01, user=admin">Regression (Section 5)</option>
-                    </select>
+        <!-- Stats Bar -->
+        <div class="stats-bar" id="stats-bar">
+            <div class="stat">
+                <span class="stat-label">Total Processed</span>
+                <span class="stat-value" id="stat-total">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Cached</span>
+                <span class="stat-value green" id="stat-cached">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Discovery (LLM)</span>
+                <span class="stat-value orange" id="stat-discovery">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Families Learned</span>
+                <span class="stat-value" id="stat-families">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Avg Latency</span>
+                <span class="stat-value" id="stat-latency">—</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">LLM Saved</span>
+                <span class="stat-value cyan" id="stat-saved">0%</span>
+            </div>
+        </div>
+
+        <!-- Main -->
+        <main class="main">
+            <section class="input-panel">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>Ingest Logs</h2>
+                        <span class="panel-hint">Paste any format — CSV, JSON, Syslog, Pipe, etc.</span>
+                    </div>
+
+                    <div class="field">
+                        <label for="sample-select">Try a sample format</label>
+                        <select id="sample-select">
+                            <option value="">— Select sample —</option>
+                            <option value='{"timestamp": "2026-09-13T10:00:00Z", "level": "error", "message": "Database connection failed", "host": "db-server-01"}'>JSON Structured</option>
+                            <option value="2026-09-13T10:15:30Z,ERROR,Connection reset by peer,app-server-02,pid=992">CSV Delimited (deterministic demo)</option>
+                            <option value="2026-09-13T10:20:00Z | CRITICAL | PaymentGateway | Transaction txn-8829 failed due to timeout after 3000ms">Pipe Delimited</option>
+                            <option value="2026-09-19 14:32:10.123 [main] INFO org.springframework.boot.Startup - Started Application in 2.5s">Java / Spring Boot</option>
+                            <option value="INFO:root:Connected to database successfully">Python Logger</option>
+                            <option value="2026-09-19T14:32:10.123456789Z stdout F Starting web server on :8080">Kubernetes CRI</option>
+                            <option value='2026/09/19 14:32:10 [error] 1234#0: *1 open() "/favicon.ico" failed, client: 192.168.1.10'>Nginx Error</option>
+                            <option value="<165>1 2026-09-19T14:32:10.003Z mymachine.example.com evntslog 1234 ID47 - An application event log entry">RFC 5424 Syslog</option>
+                            <option value="Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8">RFC 3164 Syslog</option>
+                            <option value="CEF:0|SecurityCompany|Firewall|1.0|100|Packet dropped|5|src=10.0.0.1 dst=10.0.0.2 spt=1234 dpt=80">CEF Firewall</option>
+                            <option value='ts=2026-09-19T14:32:10.123Z level=error caller=main.go:42 msg="crash detected" err="null pointer" thread_id=9'>Logfmt Key-Value</option>
+                            <option value="2026-09-19 14:32:10.123 UTC [1234] postgres@mydb LOG: duration: 12.345 ms statement: SELECT * FROM users;">PostgreSQL</option>
+                            <option value="Failed password for invalid user admin from 192.168.1.105 port 54321 ssh2">SSH Auth Failure (generic)</option>
+                            <option value='192.168.1.100 - john [19/Sep/2026:13:24:00 +0000] "GET /index.html HTTP/1.1" 200 4321 "https://google.com" "Mozilla/5.0"'>Apache Combined Log</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="log-input">Raw logs (one per line, multi-line supported)</label>
+                        <textarea id="log-input" placeholder="Paste logs here...
+Example CSV:
+2026-09-13T10:15:30Z,ERROR,Connection reset by peer,app-server-02,pid=992
+2026-09-13T10:16:00Z,WARNING,Timeout,app-server-03,pid=100
+
+First line of a new family uses LLM once, all later lines of same family are cached forever."></textarea>
+                    </div>
+
+                    <div class="actions">
+                        <button id="process-btn" class="primary">
+                            <span class="btn-icon">▶</span> Analyze Logs
+                        </button>
+                        <button id="clear-btn" class="secondary">Clear</button>
+                    </div>
+
+                    <div class="info-box">
+                        <strong>How it works:</strong>
+                        <ul>
+                            <li><b>Family detection</b> groups logs by coarse format (csv, json, pipe, syslog, etc.)</li>
+                            <li><b>First sight</b> of a family → one Discovery call (LLM or heuristic)</li>
+                            <li><b>All later</b> logs of same family → Cached, zero LLM, even after millions of tests</li>
+                            <li>Generic unstructured logs use template-level caching + novelty gate</li>
+                        </ul>
+                    </div>
                 </div>
-                <textarea id="log-input" placeholder="Paste your raw logs here (multiple lines supported)..."></textarea>
-                <button id="process-btn">Run Pipeline</button>
-            </div>
+            </section>
 
-            <!-- Multi-card Output Container -->
-            <div id="results-container"></div>
-            
-            <!-- Cache Inspector -->
-            <div class="panel cache-inspector">
-                <h2>Cache Inspector 
-                    <button id="refresh-cache-btn" style="width: auto; padding: 0.3rem 0.8rem; margin: 0; font-size: 0.75rem; float: right;">Refresh</button>
-                </h2>
-                <pre id="cache-output">Cache is currently empty.</pre>
-            </div>
-
-            <!-- Drain3 Template Tier -->
-            <div class="panel cache-inspector">
-                <h2>Template Tier (Drain3)
-                    <span id="tier-stats" style="font-size: 0.7rem; color: #94a3b8; font-weight: normal; margin-left: 0.5rem;"></span>
-                    <button id="refresh-templates-btn" style="width: auto; padding: 0.3rem 0.8rem; margin: 0; font-size: 0.75rem; float: right;">Refresh</button>
-                </h2>
-                <table class="fields-table">
-                    <thead>
-                        <tr><th>Template</th><th style="width: 5rem;">Count</th><th style="width: 6rem;">Rule</th><th style="width: 7rem;">Mode</th></tr>
-                    </thead>
-                    <tbody id="templates-body">
-                        <tr><td colspan="4" style="text-align:center; color:#94a3b8;">No templates mined yet — run some logs.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Novel Format Quarantine (scikit-learn gate) -->
-            <div class="panel cache-inspector">
-                <h2>Novel-Format Quarantine <span style="font-size: 0.7rem; color: #94a3b8; font-weight: normal;">(scikit-learn gate)</span>
-                    <span id="gate-stats" style="font-size: 0.7rem; color: #94a3b8; font-weight: normal; margin-left: 0.5rem;"></span>
-                    <button id="refresh-quarantine-btn" style="width: auto; padding: 0.3rem 0.8rem; margin: 0; font-size: 0.75rem; float: right;">Refresh</button>
-                </h2>
-                <div id="quarantine-output" style="font-size: 0.8rem; color: #94a3b8;">No novel templates seen.</div>
-            </div>
+            <section class="results-panel">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>Results</h2>
+                        <span class="panel-hint" id="results-hint">No logs processed yet</span>
+                    </div>
+                    <div id="results-container" class="results-container">
+                        <div class="empty-state">
+                            <div class="empty-icon">◫</div>
+                            <p>Results will appear here after analysis</p>
+                            <small>Try CSV sample: first run = Discovery, second run = Cached (no LLM)</small>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </main>
+
+        <!-- Advanced (collapsible) -->
+        <section class="advanced">
+            <details>
+                <summary>Advanced — System & Cache Inspector</summary>
+                <div class="tabs">
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" data-tab="family">Family Cache</button>
+                        <button class="tab-btn" data-tab="fingerprint">Fingerprint Cache</button>
+                        <button class="tab-btn" data-tab="templates">Templates (Drain3)</button>
+                        <button class="tab-btn" data-tab="quarantine">Quarantine</button>
+                        <button class="tab-btn" data-tab="health">Health</button>
+                    </div>
+                    <div class="tab-content">
+                        <div id="tab-family" class="tab-pane active">
+                            <div class="tab-header">
+                                <h3>Family Cache — deterministic, never evicted</h3>
+                                <button id="refresh-family-btn" class="small">Refresh</button>
+                            </div>
+                            <pre id="family-output">Loading…</pre>
+                        </div>
+                        <div id="tab-fingerprint" class="tab-pane">
+                            <div class="tab-header">
+                                <h3>Fingerprint Cache (500 LRU)</h3>
+                                <button id="refresh-cache-btn" class="small">Refresh</button>
+                            </div>
+                            <pre id="cache-output">Loading…</pre>
+                        </div>
+                        <div id="tab-templates" class="tab-pane">
+                            <div class="tab-header">
+                                <h3>Drain3 Templates</h3>
+                                <span id="tier-stats" class="muted"></span>
+                                <button id="refresh-templates-btn" class="small">Refresh</button>
+                            </div>
+                            <table class="table">
+                                <thead><tr><th>Template</th><th>Count</th><th>Rule</th></tr></thead>
+                                <tbody id="templates-body"><tr><td colspan="3" class="muted">No data</td></tr></tbody>
+                            </table>
+                        </div>
+                        <div id="tab-quarantine" class="tab-pane">
+                            <div class="tab-header">
+                                <h3>Novel Format Quarantine (ML gate)</h3>
+                                <span id="gate-stats" class="muted"></span>
+                                <button id="refresh-quarantine-btn" class="small">Refresh</button>
+                            </div>
+                            <div id="quarantine-output" class="muted">No data</div>
+                        </div>
+                        <div id="tab-health" class="tab-pane">
+                            <div class="tab-header"><h3>System Health</h3><button id="refresh-health-btn" class="small">Refresh</button></div>
+                            <pre id="health-output">Loading…</pre>
+                        </div>
+                    </div>
+                </div>
+            </details>
+        </section>
+
+        <footer class="footer">
+            <span>SIH 2026 • Deterministic pipeline • One LLM per family, cached forever</span>
+        </footer>
     </div>
 
-    <!-- Template for a single result card -->
+    <!-- Result card template -->
     <template id="result-card-template">
-        <div class="panel result-card" style="margin-bottom: 2rem;">
-            <!-- Summary Row -->
-            <div class="summary-row" style="margin-bottom: 1.5rem;">
-                <div class="stat-card mode-card">
-                    <div class="stat-label">Processing Path</div>
-                    <div class="stat-value val-mode">--</div>
-                    <div class="llm-error-note" style="display:none; margin-top:0.5rem; font-size:0.7rem; color:var(--accent-orange); font-family:var(--font-code); line-height:1.35; word-break:break-word;"></div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Detected Signature</div>
-                    <div class="stat-value val-format">--</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Latency</div>
-                    <div class="stat-value val-latency">--</div>
+        <div class="result-card">
+            <div class="result-header">
+                <div class="badge mode-badge">—</div>
+                <div class="result-meta">
+                    <span class="meta-item"><b>Format:</b> <span class="val-format">—</span></span>
+                    <span class="meta-item"><b>Family:</b> <span class="val-family">—</span></span>
+                    <span class="meta-item"><b>Latency:</b> <span class="val-latency">—</span></span>
+                    <span class="meta-item"><b>By:</b> <span class="val-by">—</span></span>
                 </div>
             </div>
-
-            <!-- Extracted Fields Table -->
-            <h3 style="font-family: var(--font-code); color: var(--accent-cyan); font-size: 0.9rem;">Extracted Fields</h3>
-            <table class="fields-table" style="margin-bottom: 1.5rem;">
-                <thead>
-                    <tr>
-                        <th>Field Name</th>
-                        <th>Extracted Value</th>
-                    </tr>
-                </thead>
-                <tbody class="fields-body"></tbody>
-            </table>
-
-            <!-- Normalized Output -->
-            <h3 style="font-family: var(--font-code); color: var(--accent-cyan); font-size: 0.9rem;">Normalized Output (Common Schema)</h3>
-            <pre class="log-output"></pre>
+            <div class="llm-note" style="display:none"></div>
+            <div class="result-body">
+                <div class="fields-section">
+                    <h4>Extracted Fields</h4>
+                    <table class="table small">
+                        <thead><tr><th>Field</th><th>Value</th></tr></thead>
+                        <tbody class="fields-body"></tbody>
+                    </table>
+                </div>
+                <div class="normalized-section">
+                    <h4>Normalized (Common Schema) <button class="small toggle-json">Toggle</button></h4>
+                    <pre class="log-output"></pre>
+                </div>
+            </div>
         </div>
     </template>
 

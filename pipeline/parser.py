@@ -8,14 +8,42 @@ from .timeutil import parse_timestamp
 def strip_ansi(s: str) -> str:
     return re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', s)
 
+# ---------- Family definitions (deterministic, coarse) ----------
+# Order matters: most specific first.
+KNOWN_FAMILIES = {
+    "json", "cef", "leef", "ncsa", "rfc5424", "rfc3164", "cri",
+    "nginx_error", "python", "java", "postgres", "logfmt",
+    "pipe", "csv", "semicolon", "tab"
+}
+
+FAMILY_PATTERNS = [
+    ("json", re.compile(r'^\s*\{.*\}\s*$', re.DOTALL)),
+    ("cef", re.compile(r'^CEF:')),
+    ("leef", re.compile(r'^LEEF:')),
+    ("ncsa", re.compile(r'\[\w+:/\s*[+\-]\d{4}\]\s+"[^"]+"\s+\d{3}')),
+    ("rfc5424", re.compile(r'^<\d{1,3}>\d+\s+')),
+    ("rfc3164", re.compile(r'^(?:<\d{1,3}>)?[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+[a-zA-Z0-9_.-]+\s+[a-zA-Z0-9_./-]+(?:\[\d+\])?:\s*')),
+    ("cri", re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+\-]\d{2}:?\d{2})\s+(?:stdout|stderr)\s+[FP]\s+')),
+    ("nginx_error", re.compile(r'^\d{4}[/-]\d{2}[/-]\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[[a-z]+\]\s+\d+#\d+:')),
+    ("python", re.compile(r'^[A-Z]{3,8}:[a-zA-Z0-9_.]+:')),
+    ("java", re.compile(r'(\[main\]\s+(?:[A-Z]{3,8}\s+)?[a-zA-Z0-9_.$]+|^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3}\s+\d+\s+---\s+\[|^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3}\s+(?:\[[^\]]+\]\s+)?[A-Z]{3,8}\s+)')),
+    ("postgres", re.compile(r'^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s+[A-Z]{3,4})?\s+\[\d+\]\s+(?:[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+\s+)?[A-Z]{3,8}:\s+')),
+    ("logfmt", re.compile(r'([a-zA-Z0-9_.-]+=)')),
+]
+
 class UniversalParser:
     def __init__(self):
         self.cache = {}
         self._parsed_fps = {}
         self.cache_lock = threading.Lock()
-        
+
+        # Family cache: family_id -> rule, NEVER evicted, deterministic.
+        # This is the primary gate that guarantees "once per format, LLM once".
+        self.family_cache = {}
+        self.family_lock = threading.Lock()
+
         self.ts_patterns = [
-            r'^\[?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\]?',
+            r'^\[?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+\-]\d{2}:?\d{2})?\]?',
             r'^\[?\d{4}[/-]\d{2}[/-]\d{2}\s+\d{2}:\d{2}:\d{2}(?:[.,]\d+)?\]?',
             r'^\[?\d{2,4}/\d{2}/\d{2,4}\s+\d{2}:\d{2}:\d{2}\]?',
             r'^\[?[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?\]?',
@@ -25,16 +53,24 @@ class UniversalParser:
         self.compiled_ts_patterns = [re.compile(p) for p in self.ts_patterns]
 
         self.severity_words = [
-            "CRITICAL", "WARNING", "EMERGENCY", "SEVERE", "NOTICE", "TRACE", 
+            "CRITICAL", "WARNING", "EMERGENCY", "SEVERE", "NOTICE", "TRACE",
             "DEBUG", "ERROR", "FATAL", "EMERG", "ALERT", "CRIT", "INFO", "WARN", "ERR"
         ]
         words_pipe = "|".join(self.severity_words)
         self.sev_pattern = re.compile(rf'\[?({words_pipe})\]?(?![A-Za-z0-9_])', re.IGNORECASE)
         self.date_fallback_pattern = re.compile(r'(\d{4}-\d{2}-\d{2}|\d{2,4}/\d{2}/\d{2,4}|[A-Z][a-z]{2}\s+\d{1,2})', re.IGNORECASE)
 
+    # ---------- Cache introspection ----------
     def snapshot_cache(self):
         with self.cache_lock:
-            return [{"fingerprint_features": json.loads(k), "inferred_rule": v} for k, v in self.cache.items()]
+            fps = [{"fingerprint_features": json.loads(k), "inferred_rule": v} for k, v in self.cache.items()]
+        with self.family_lock:
+            families = [{"family": fam, "rule": rule} for fam, rule in self.family_cache.items()]
+        return fps  # keep API compat; family cache exposed via separate method
+
+    def snapshot_family_cache(self):
+        with self.family_lock:
+            return dict(self.family_cache)
 
     def store_rule(self, features: dict, rule: dict):
         fp_str = json.dumps(features, sort_keys=True)
@@ -47,6 +83,31 @@ class UniversalParser:
             self.cache[fp_str] = rule
             self._parsed_fps[fp_str] = dict(features)
 
+    # ---------- Family cache (deterministic, no eviction) ----------
+    def get_family_rule(self, family: str):
+        with self.family_lock:
+            return self.family_cache.get(family)
+
+    def store_family_rule(self, family: str, rule: dict):
+        with self.family_lock:
+            # Never overwrite with a less specific rule; first rule wins unless explicit upgrade.
+            # But allow upgrade if existing rule is heuristic and new is llm, or if signature more specific.
+            existing = self.family_cache.get(family)
+            if existing is None:
+                self.family_cache[family] = dict(rule)
+            else:
+                # Prefer llm over heuristic, and keep first learned signature.
+                if existing.get("inferred_by") != "llm" and rule.get("inferred_by") == "llm":
+                    self.family_cache[family] = dict(rule)
+                # otherwise keep existing (deterministic)
+
+    def clear_all(self):
+        with self.cache_lock:
+            self.cache.clear()
+            self._parsed_fps.clear()
+        with self.family_lock:
+            self.family_cache.clear()
+
     def looks_like_ts_or_sev(self, field: str) -> bool:
         field = field.strip()
         if not field:
@@ -57,23 +118,111 @@ class UniversalParser:
             return True
         return False
 
+    # ---------- Family detection (coarse, stable) ----------
+    def detect_family(self, log_entry: str) -> str:
+        s = strip_ansi(log_entry).strip()
+        if not s:
+            return "generic"
+
+        # JSON fast path
+        if s.startswith('{') and s.endswith('}'):
+            try:
+                parsed = json.loads(s)
+                if isinstance(parsed, dict):
+                    return "json"
+            except Exception:
+                pass
+
+        # Security formats
+        if s.startswith("CEF:"):
+            return "cef"
+        if s.startswith("LEEF:"):
+            return "leef"
+
+        # NCSA combined (Apache/Nginx access)
+        if re.search(r'\[\w+:/\s*[+\-]\d{4}\]\s+"[^"]+"\s+\d{3}', s):
+            return "ncsa"
+
+        if re.match(r'^<\d{1,3}>\d+\s+', s):
+            return "rfc5424"
+        if re.match(r'^(?:<\d{1,3}>)?[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+[a-zA-Z0-9_.-]+\s+[a-zA-Z0-9_./-]+(?:\[\d+\])?:\s*', s):
+            return "rfc3164"
+        if re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+\-]\d{2}:?\d{2})\s+(?:stdout|stderr)\s+[FP]\s+', s):
+            return "cri"
+        if re.match(r'^\d{4}[/-]\d{2}[/-]\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[[a-z]+\]\s+\d+#\d+:', s):
+            return "nginx_error"
+        if re.match(r'^[A-Z]{3,8}:[a-zA-Z0-9_.]+:', s):
+            # Validate severity
+            m = re.match(r'^([A-Z]{3,8}):', s)
+            if m and m.group(1).upper() in [w.upper() for w in self.severity_words]:
+                return "python"
+
+        # Java / Spring
+        if re.search(r'\[main\]\s+(?:[A-Z]{3,8}\s+)?[a-zA-Z0-9_.$]+', s) or re.match(r'^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3}\s+\d+\s+---\s+\[', s) or re.match(r'^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3}\s+(?:\[[^\]]+\]\s+)?[A-Z]{3,8}\s+(?:\[[^\]]+\]|\([^)]+\)|[a-zA-Z0-9_.$]+)', s):
+            # Ensure not already matched as other
+            if re.match(r'^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3}', s):
+                return "java"
+
+        # Postgres
+        if re.match(r'^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s+[A-Z]{3,4})?\s+\[\d+\]\s+(?:[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+\s+)?[A-Z]{3,8}:\s+', s):
+            return "postgres"
+
+        # Delimited detection (pipe, comma, semicolon, tab) - must be before logfmt
+        pipe_count = s.count('|')
+        comma_count = s.count(',')
+        semi_count = s.count(';')
+        tab_count = s.count('\t')
+        eq_count = s.count('=')
+
+        # Pipe delimited: at least 2 pipes
+        if pipe_count >= 2:
+            return "pipe"
+
+        # CSV: at least 2 commas and not mostly k=v
+        if comma_count >= 2:
+            # If it looks like logfmt (many k=v), don't treat as csv
+            if eq_count < 3:
+                # Check first field looks like timestamp or single token or severity
+                first = s.split(',', 1)[0]
+                if self.looks_like_ts_or_sev(first) or len(s.split()) <= 6 or comma_count >= 3:
+                    return "csv"
+
+        if semi_count >= 2 and eq_count < 3:
+            return "semicolon"
+
+        if tab_count >= 2:
+            return "tab"
+
+        # Logfmt: at least 3 k=v pairs and not bracket heavy
+        if eq_count >= 3 and '[' not in s and '(' not in s:
+            kv_pat = re.compile(r'[a-zA-Z0-9_.-]+=(\"[^\"]*\"|\'[^\']*\'|[^ \t\n\r,;\]\}>\)&]+)')
+            matches = kv_pat.findall(s)
+            if len(matches) >= 3:
+                total_kv_len = sum(len(m) for m in matches)
+                # At least 40% of string is k=v
+                if total_kv_len >= len(s) * 0.35:
+                    return "logfmt"
+
+        # Fallback generic (includes auth failures, custom formats, etc.)
+        return "generic"
+
     def fingerprint(self, log_entry: str) -> dict:
         s = strip_ansi(log_entry).strip()
         is_json = False
         if s.startswith('{') and s.endswith('}'):
-            try: 
+            try:
                 parsed = json.loads(s)
                 if isinstance(parsed, dict):
                     is_json = True
-            except Exception: 
+            except Exception:
                 pass
-                
+
         tok_count = len(s.split())
         pipe_count = s.count('|')
         comma_count = s.count(',')
         eq_count = s.count('=')
         bracket_count = s.count('[') + s.count('(')
-        
+
         delim = None
         is_security_format = s.startswith("CEF:") or s.startswith("LEEF:")
         if not is_json and not is_security_format:
@@ -85,19 +234,33 @@ class UniversalParser:
                     delim = ","
 
         fmt_type = "generic"
-        if is_json: fmt_type = "json"
-        elif s.startswith("CEF:"): fmt_type = "cef"
-        elif s.startswith("LEEF:"): fmt_type = "leef"
-        elif re.search(r'\[[\w:/]+\s+[+\-]\d{4}\]\s+"[^"]+"\s+\d{3}', s): fmt_type = "ncsa"
-        elif re.match(r'^<(\d{1,3})>(\d+)\s+', s): fmt_type = "rfc5424"
-        elif re.match(r'^(?:<\d{1,3}>)?[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+[a-zA-Z0-9_.-]+\s+[a-zA-Z0-9_./-]+(?:\[\d+\])?:\s*', s): fmt_type = "rfc3164"
-        elif re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})\s+(?:stdout|stderr)\s+[FP]\s+', s): fmt_type = "cri"
-        elif re.match(r'^\d{4}[/-]\d{2}[/-]\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[[a-z]+\]\s+\d+#\d+:', s): fmt_type = "nginx_err"
-        elif re.match(r'^[A-Z]{3,8}:[a-zA-Z0-9_.]+:', s): fmt_type = "python"
-        elif re.search(r'\[main\]\s+(?:[A-Z]{3,8}\s+)?[a-zA-Z0-9_.$]+', s) or re.match(r'^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3}\s+\d+\s+---\s+\[', s): fmt_type = "java"
-        elif eq_count >= 3 and '[' not in s and '(' not in s and re.search(r'=\S+', s): fmt_type = "logfmt"
-        elif delim is not None: fmt_type = f"delim_{delim}"
-                    
+        if is_json:
+            fmt_type = "json"
+        elif s.startswith("CEF:"):
+            fmt_type = "cef"
+        elif s.startswith("LEEF:"):
+            fmt_type = "leef"
+        elif re.search(r'\[\w+:/\s*[+\-]\d{4}\]\s+"[^"]+"\s+\d{3}', s):
+            fmt_type = "ncsa"
+        elif re.match(r'^<\d{1,3}>\d+\s+', s):
+            fmt_type = "rfc5424"
+        elif re.match(r'^(?:<\d{1,3}>)?[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+[a-zA-Z0-9_.-]+\s+[a-zA-Z0-9_./-]+(?:\[\d+\])?:\s*', s):
+            fmt_type = "rfc3164"
+        elif re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+\-]\d{2}:?\d{2})\s+(?:stdout|stderr)\s+[FP]\s+', s):
+            fmt_type = "cri"
+        elif re.match(r'^\d{4}[/-]\d{2}[/-]\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[[a-z]+\]\s+\d+#\d+:', s):
+            fmt_type = "nginx_err"
+        elif re.match(r'^[A-Z]{3,8}:[a-zA-Z0-9_.]+:', s):
+            fmt_type = "python"
+        elif re.search(r'\[main\]\s+(?:[A-Z]{3,8}\s+)?[a-zA-Z0-9_.$]+', s) or re.match(r'^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3}\s+\d+\s+---\s+\[', s):
+            fmt_type = "java"
+        elif eq_count >= 3 and '[' not in s and '(' not in s and re.search(r'=\S+', s):
+            fmt_type = "logfmt"
+        elif delim is not None:
+            fmt_type = f"delim_{delim}"
+
+        family = self.detect_family(log_entry)
+
         return {
             "is_json": is_json,
             "tok_count": tok_count,
@@ -106,54 +269,68 @@ class UniversalParser:
             "eq_count": eq_count,
             "bracket_count": bracket_count,
             "delim": delim,
-            "fmt_type": fmt_type
+            "fmt_type": fmt_type,
+            "family": family
         }
 
     def find_cached_rule(self, features: dict):
+        # Fast path: family cache is checked outside, but keep here for compat.
+        # This method now uses relaxed matching: same fmt_type or same delim or same family.
         best_match_fp = None
         best_match_rule = None
-        best_diff = float('inf')
 
         with self.cache_lock:
             if not self.cache and self._parsed_fps:
                 self._parsed_fps.clear()
+
+            # First pass: exact family match if present in features
+            fam = features.get("family")
+            if fam:
+                with self.family_lock:
+                    fr = self.family_cache.get(fam)
+                    if fr:
+                        return f"family:{fam}", fr
+
             for fp_str, rule in self.cache.items():
                 cached_feat = self._parsed_fps.get(fp_str)
                 if cached_feat is None:
-                    cached_feat = json.loads(fp_str)
+                    try:
+                        cached_feat = json.loads(fp_str)
+                    except Exception:
+                        continue
                     self._parsed_fps[fp_str] = cached_feat
 
-                if cached_feat["is_json"] != features["is_json"]:
+                if cached_feat.get("is_json") != features.get("is_json"):
                     continue
-                    
-                if features["is_json"]:
+
+                if features.get("is_json"):
                     if rule.get("method") == "json":
                         return fp_str, rule
                     continue
 
-                if "fmt_type" in cached_feat and "fmt_type" in features:
-                    if cached_feat["fmt_type"] != features["fmt_type"]:
-                        continue
-                    
-                if cached_feat.get("delim") != features["delim"]:
+                # Family must match if both have it
+                if "family" in cached_feat and "family" in features:
+                    if cached_feat["family"] == features["family"]:
+                        return fp_str, rule
+                    # If families differ, skip
                     continue
-                    
-                if (cached_feat["pipe_count"] == features["pipe_count"] and
-                    cached_feat["comma_count"] == features["comma_count"] and
-                    cached_feat["eq_count"] == features["eq_count"] and
-                    cached_feat["bracket_count"] == features["bracket_count"]):
-                    
-                    diff = abs(cached_feat["tok_count"] - features["tok_count"])
-                    if features["delim"] is not None:
-                        if diff == 0:
-                            return fp_str, rule
-                    else:
-                        if diff <= 4 and diff < best_diff:
-                            best_diff = diff
-                            best_match_fp = fp_str
-                            best_match_rule = rule
 
-        return best_match_fp, best_match_rule
+                # Legacy fmt_type matching (relaxed)
+                if cached_feat.get("fmt_type") and features.get("fmt_type"):
+                    if cached_feat["fmt_type"] == features["fmt_type"]:
+                        # For delimited, ignore token counts
+                        if features.get("delim") is not None:
+                            if cached_feat.get("delim") == features.get("delim"):
+                                return fp_str, rule
+                        else:
+                            return fp_str, rule
+
+                # Fallback: delim match
+                if cached_feat.get("delim") and features.get("delim"):
+                    if cached_feat["delim"] == features["delim"]:
+                        return fp_str, rule
+
+        return None, None
 
     def detect_timestamp(self, line: str):
         line = line.strip()
@@ -167,7 +344,7 @@ class UniversalParser:
                     remainder = line[len(matched_str):].lstrip(' -:,|')
                     was_syslog = (i == 3)
                     return iso, was_syslog, remainder
-                    
+
         tokens = line.split()
         for i in range(1, min(4, len(tokens)+1)):
             candidate = " ".join(tokens[:i])
@@ -197,7 +374,7 @@ class UniversalParser:
         if product: res["extra"]["device_product"] = product
         if dev_ver: res["extra"]["device_version"] = dev_ver
         if class_id: res["extra"]["event_class_id"] = class_id
-        
+
         kv_pairs = re.findall(r'(\w+)=((?:\\=|[^=])*)(?:\s+|$)', ext)
         for k, v in kv_pairs:
             res["extra"][k.strip()] = v.strip().replace(r'\=', '=')
@@ -214,7 +391,7 @@ class UniversalParser:
         res["extra"]["leef_version"] = leef_ver
         res["extra"]["device_vendor"] = vendor
         res["extra"]["device_product"] = product
-        
+
         delim = '\t' if '\t' in ext else r'\s+'
         kv_pairs = re.findall(r'(\w+)=((?:\\=|[^=])*)(?:' + delim + r'|$)', ext)
         for k, v in kv_pairs:
@@ -233,7 +410,7 @@ class UniversalParser:
         res["parsed_fields"]["severity"] = sevs.get(sev_num, "UNKNOWN")
         res["extra"]["facility"] = val >> 3
         res["extra"]["syslog_version"] = int(ver)
-        
+
         iso = parse_timestamp(ts)
         if iso:
             res["parsed_fields"]["timestamp"] = iso
@@ -245,7 +422,7 @@ class UniversalParser:
             res["extra"]["pid"] = procid
         if msgid and msgid != "-":
             res["parsed_fields"]["event_type"] = msgid
-            
+
         if rest:
             sd_match = re.match(r'^(\[[^\]]+\])\s*(.*)$', rest)
             if sd_match:
@@ -257,7 +434,7 @@ class UniversalParser:
         return res
 
     def _parse_cri(self, s: str) -> dict | None:
-        m = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2}))\s+(stdout|stderr)\s+([FP])\s+(.*)$', s)
+        m = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+\-]\d{2}:?\d{2}))\s+(stdout|stderr)\s+([FP])\s+(.*)$', s)
         if not m:
             return None
         ts, stream, flag, inner_msg = m.groups()
@@ -268,7 +445,7 @@ class UniversalParser:
         res["extra"]["stream"] = stream
         res["extra"]["cri_flag"] = flag
         res["parsed_fields"]["severity"] = "ERROR" if stream == "stderr" else "INFO"
-        
+
         inner_trimmed = inner_msg.strip()
         if inner_trimmed.startswith('{') and inner_trimmed.endswith('}'):
             try:
@@ -278,7 +455,7 @@ class UniversalParser:
                     return res
             except Exception:
                 pass
-                
+
         inner_parsed = self.parse_compositional(inner_trimmed)
         for k, v in inner_parsed["parsed_fields"].items():
             if k == "timestamp" and res["parsed_fields"].get("timestamp"):
@@ -303,7 +480,7 @@ class UniversalParser:
         if cid: res["extra"]["connection_id"] = cid
         res["parsed_fields"]["source"] = "nginx"
         res["parsed_fields"]["event_type"] = "web_error"
-        
+
         main_msg = msg_part
         trailer_match = re.search(r',\s*(client:\s*[^,]+.*)$', msg_part)
         if trailer_match:
@@ -349,9 +526,9 @@ class UniversalParser:
             if thread: res["extra"]["thread"] = thread
             res["parsed_fields"]["message"] = msg.strip()
             return res
-            
+
         p2 = re.compile(
-            r'^\[?([A-Z]{3,8})\]?\s+(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3})\s+(?:\[([^\]]+)\]\s+)?([a-zA-Z0-9_.$]+(?:\.[a-zA-Z0-9_$]+)*)\s*(?:-+|:)\s*(.*)$'
+            r'^\[?([A-Z]{3,8})\]?\s+(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3})\s+(?:\[([^\]]+)\]\s+)?([a-zA-Z0-9_.$]+(?:\.[a-zA-Z0-9_$]+)*)\s*(?:-+|:)\\s*(.*)$'
         )
         m2 = p2.match(s)
         if m2:
@@ -378,7 +555,7 @@ class UniversalParser:
                 },
                 "extra": {}
             }
-            
+
         m2 = re.match(r'^(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3})\s*-\s*([a-zA-Z0-9_.]+)\s*-\s*([A-Z]{3,8})\s*-\s*(.*)$', s)
         if m2:
             ts, logger, sev, msg = m2.groups()
@@ -386,7 +563,7 @@ class UniversalParser:
             res = {"parsed_fields": {"severity": sev.upper(), "source": logger, "message": msg.strip()}, "extra": {}}
             if iso: res["parsed_fields"]["timestamp"] = iso
             return res
-            
+
         m3 = re.match(r'^\[(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[,.]\d{3})\]\s*\{([^}]+)\}\s*([A-Z]{3,8})\s*-\s*(.*)$', s)
         if m3:
             ts, caller, sev, msg = m3.groups()
@@ -418,15 +595,15 @@ class UniversalParser:
     def _parse_logfmt(self, s: str) -> dict | None:
         if '(' in s or '[' in s:
             return None
-        kv_pattern = re.compile(r'([a-zA-Z0-9_.-]+)=(?:\"([^\"]*)\"|\'([^\']*)\'|([^ \t\n\r,;\]\}>\)&]+))')
+        kv_pattern = re.compile(r'([a-zA-Z0-9_.-]+)=(?:\"([^\"]*)\"|\'([^\']*)\'|([^ \t\n\r,;\]\}>\\)&]+))')
         matches = kv_pattern.findall(s)
         if len(matches) < 3:
             return None
-            
+
         total_kv_len = sum(len(m[0]) + 1 + len(m[1] or m[2] or m[3]) for m in matches)
         if total_kv_len < len(s) * 0.45:
             return None
-            
+
         res = {"parsed_fields": {}, "extra": {}}
         for k, v1, v2, v3 in matches:
             val = v1 if v1 != "" else (v2 if v2 != "" else v3)
@@ -465,7 +642,7 @@ class UniversalParser:
                 result["parsed_fields"]["timestamp"] = ts_iso
             result["parsed_fields"]["message"] = request
             result["parsed_fields"]["event_type"] = "http_request"
-            
+
             try:
                 status_int = int(status)
                 result["extra"]["http_status"] = status_int
@@ -477,13 +654,13 @@ class UniversalParser:
                     result["parsed_fields"]["severity"] = "INFO"
             except ValueError:
                 pass
-                
+
             if ident and ident != "-": result["extra"]["ident"] = ident
             if user and user != "-": result["extra"]["user"] = user
             if size and size != "-": result["extra"]["bytes_sent"] = int(size) if size.isdigit() else size
             if referer and referer != "-": result["extra"]["referer"] = referer
             if agent and agent != "-": result["extra"]["user_agent"] = agent
-                
+
             req_tokens = request.split()
             if len(req_tokens) >= 2:
                 result["extra"]["http_method"] = req_tokens[0]
@@ -511,7 +688,7 @@ class UniversalParser:
 
         # Master Fallback: Compositional Zone Extraction
         result = {"parsed_fields": {}, "extra": {}}
-        
+
         # 0. Syslog priority prefix <PRI>
         match = re.search(r'^<(\d{1,3})>', rem)
         if match:
@@ -525,9 +702,9 @@ class UniversalParser:
 
         # 1. Timestamp Detection (leading or bracketed)
         ts_iso, was_syslog, rem = self.detect_timestamp(rem)
-        if ts_iso: 
+        if ts_iso:
             result["parsed_fields"]["timestamp"] = ts_iso
-            
+
         # 2. Leading Severity
         if "severity" not in result["parsed_fields"]:
             match = self.sev_pattern.search(rem)
@@ -535,7 +712,7 @@ class UniversalParser:
                 matched_str = match.group(0)
                 rem = rem[len(matched_str):].lstrip(' -:,|')
                 result["parsed_fields"]["severity"] = match.group(1).upper()
-                
+
         # 3. Syslog host/program
         if ts_iso and was_syslog:
             host_match = re.match(r'^([a-zA-Z0-9_-]+)\s+([a-zA-Z0-9_.-]+)(?:\[(\d+)\])?:\s*', rem)
@@ -545,7 +722,7 @@ class UniversalParser:
                 if host_match.group(3):
                     result["extra"]["pid"] = host_match.group(3)
                 rem = rem[len(host_match.group(0)):]
-                
+
         # 4. Context brackets [thread] or (process)
         match = re.search(r'^\[([^\]]+)\]|^\(([^)]+)\)', rem)
         if match:
@@ -553,7 +730,7 @@ class UniversalParser:
             content = match.group(1) or match.group(2)
             rem = rem[len(matched_str):].lstrip(' -:,|')
             result["extra"]["context"] = content
-            
+
             if "severity" not in result["parsed_fields"]:
                 sev_match = self.sev_pattern.search(rem)
                 if sev_match and sev_match.start() == 0:
@@ -573,7 +750,7 @@ class UniversalParser:
                 pass
 
         # 6. Message
-        if rem: 
+        if rem:
             result["parsed_fields"]["message"] = rem.strip()
 
         # 7. Entity Recognition: IPs, Ports, Users
@@ -596,7 +773,7 @@ class UniversalParser:
             user_val = user_match.group(1)
             if user_val.lower() not in ("invalid", "authentication", "to", "the", "a", "an"):
                 result["extra"]["user"] = user_val
-            
+
         # 8. KV scan
         kv_pattern = re.compile(r'([a-zA-Z0-9_-]+)=("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'|[^ \t\n\r,;\]\}>\)&]+)')
         for k, v in kv_pattern.findall(full_text):
@@ -610,12 +787,11 @@ class UniversalParser:
         result = {"parsed_fields": {}, "extra": {}}
         method = rule.get("method")
         clean_entry = strip_ansi(log_entry).strip()
-        
+
         if method == "json":
             try:
                 parsed = json.loads(clean_entry)
                 if isinstance(parsed, dict):
-                    # Check for Docker container wrapper: {"log": "...", "stream": "stdout", "time": "..."}
                     if "log" in parsed and isinstance(parsed["log"], str) and ("stream" in parsed or "time" in parsed):
                         inner = parsed["log"].strip()
                         inner_parsed = self.parse_compositional(inner)
@@ -625,21 +801,20 @@ class UniversalParser:
                             if k != "log":
                                 result["extra"][k] = v
                         return result
-                    
-                    # MongoDB style format: {"t": {"$date": "..."}, "s": "I", "c": "NETWORK", "msg": "..."}
+
                     if "t" in parsed and isinstance(parsed["t"], dict) and "$date" in parsed["t"]:
                         parsed["timestamp"] = parsed.pop("t")["$date"]
                     if "s" in parsed and "severity" not in parsed:
                         parsed["severity"] = parsed.pop("s")
                     if "c" in parsed and "source" not in parsed:
                         parsed["source"] = parsed.pop("c")
-                        
+
                     result["parsed_fields"] = parsed
                     return result
             except Exception:
                 pass
             method = "compositional"
-            
+
         if method == "delimiter":
             delim = rule.get("delimiter")
             try:
@@ -647,13 +822,13 @@ class UniversalParser:
                 parts = next(reader)
             except Exception:
                 parts = [p.strip() for p in clean_entry.split(delim)]
-                
+
             parts = [p.strip() for p in parts if p.strip()]
-            
+
             ts_val = None
             sev_val = None
             rests = []
-            
+
             for p in parts:
                 if not ts_val:
                     iso = parse_timestamp(p)
@@ -670,20 +845,20 @@ class UniversalParser:
                         result["extra"][k.strip()] = v.strip()
                         continue
                 rests.append(p)
-                
+
             if not ts_val and not sev_val:
                 for i, p in enumerate(parts):
                     result["parsed_fields"][f"field_{i}"] = p
                 return result
-                
+
             if ts_val: result["parsed_fields"]["timestamp"] = ts_val
             if sev_val: result["parsed_fields"]["severity"] = sev_val
-            
+
             if rests:
                 lengths = [len(r.split()) for r in rests]
                 msg_idx = lengths.index(max(lengths))
                 result["parsed_fields"]["message"] = rests[msg_idx]
-                
+
                 src_found = False
                 for i, r in enumerate(rests):
                     if i != msg_idx:
@@ -692,11 +867,11 @@ class UniversalParser:
                             src_found = True
                         else:
                             result["extra"][f"field_{i}"] = r
-                            
+
             return result
 
         if method == "compositional":
             return self.parse_compositional(clean_entry)
-            
+
         result["parsed_fields"]["raw_message"] = clean_entry
         return result

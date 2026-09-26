@@ -39,8 +39,6 @@ template_tier = TemplateMinerTier()
 
 
 def _require_ingest_key(request: Request) -> None:
-    """Optional abuse guard: set INGEST_API_KEY to require callers of
-    /api/logs/ingest to send 'x-ingest-key'. Unset = open (demo default)."""
     expected = os.environ.get("INGEST_API_KEY")
     if expected and request.headers.get("x-ingest-key", "") != expected:
         raise HTTPException(status_code=401, detail="Invalid or missing x-ingest-key header")
@@ -69,6 +67,16 @@ def health(check_live: bool = False):
         active_provider = None
         resolved_model = _resolve_gemini_model(raw_model)
 
+    # family cache stats
+    try:
+        family_snapshot = parser.snapshot_family_cache()
+        family_stats = {
+            "families_learned": len(family_snapshot),
+            "families": list(family_snapshot.keys()),
+        }
+    except Exception:
+        family_stats = {"families_learned": 0, "families": []}
+
     resp = {
         "status": "healthy",
         "llm_configured": bool(has_gemini or has_groq or has_anthropic),
@@ -84,6 +92,7 @@ def health(check_live: bool = False):
             "stats": dict(template_tier.stats),
         },
         "format_gate": GATE.info,
+        "family_cache": family_stats,
         "ingest_auth": bool(os.environ.get("INGEST_API_KEY")),
     }
     if check_live:
@@ -102,21 +111,21 @@ EXC_PATTERN = re.compile(r'^[A-Za-z_][\w.]*(Error|Exception|Exit|Interrupt|Warni
 def buffer_lines(lines: List[str]) -> List[str]:
     if not lines:
         return []
-        
+
     buffered = []
     current_entry = []
-    
+
     json_depth = 0
     in_string = False
     in_traceback = False
-    
+
     for line in lines:
         stripped = line.strip()
         if not stripped:
             continue
-            
+
         continues = False
-        
+
         if current_entry:
             if json_depth > 0:
                 continues = True
@@ -129,7 +138,7 @@ def buffer_lines(lines: List[str]) -> List[str]:
             elif in_traceback and EXC_PATTERN.match(line):
                 continues = True
                 in_traceback = False
-                
+
         if continues and len(current_entry) < 500:
             current_entry.append(line)
         else:
@@ -139,7 +148,7 @@ def buffer_lines(lines: List[str]) -> List[str]:
             json_depth = 0
             in_string = False
             in_traceback = False
-            
+
         i = 0
         while i < len(line):
             c = line[i]
@@ -151,53 +160,79 @@ def buffer_lines(lines: List[str]) -> List[str]:
                 elif c == '{': json_depth += 1
                 elif c == '}': json_depth -= 1
             i += 1
-            
+
         if json_depth < 0: json_depth = 0
         if in_string:
             json_depth = 0
             in_string = False
-            
+
         if "Traceback (most recent call last):" in line or "Exception in thread" in line:
             in_traceback = True
 
     if current_entry:
         buffered.append('\n'.join(current_entry))
-        
+
     return buffered
 
 def process_record(log: str) -> dict:
     start_time = time.perf_counter()
     try:
-        features = parser.fingerprint(log)
-        fp_str, rule = parser.find_cached_rule(features)
+        # --- Deterministic family detection (primary cache key) ---
+        from pipeline.parser import KNOWN_FAMILIES
+        family = parser.detect_family(log)
 
+        # Family cache is authoritative ONLY for known families.
+        # Generic is intentionally NOT family-cached: each template is learned separately
+        # so novelty gate and quarantine can work for truly unseen formats (e.g., XML).
+        is_known_family = family in KNOWN_FAMILIES
+        rule = parser.get_family_rule(family) if is_known_family else None
+
+        tier_result = {"kind": "family" if rule else "unknown", "template": None, "cluster_id": None, "gate": {}, "family": family}
         mode = "Cached"
-        tier_result = {"kind": "cached", "template": None, "cluster_id": None, "gate": {}}
+        features = None
 
-        if not (fp_str and rule):
-            # Fingerprint missed -> ask the Drain3 tier. A stored rule for this
-            # exact template resolves drifted fields without any LLM call;
-            # a brand new template either passes through to discovery
-            # (shadow mode, default) or is quarantined (TPL_ENFORCE=1).
-            tier_result = template_tier.decide(log, GATE)
+        if rule:
+            # Fast path: known family already learned, zero LLM, zero Drain mining
+            mode = "Cached"
+        else:
+            # Family miss: compute detailed fingerprint
+            features = parser.fingerprint(log)
+            fp_str, cached_rule = parser.find_cached_rule(features)
 
-            if tier_result["kind"] == "rule":
-                mode = "Template-Rule"
-                rule = tier_result["rule"]
-                parser.store_rule(features, rule)
-            elif tier_result["kind"] == "quarantined":
-                mode = "Quarantined"
-                rule = discovery_engine.run_inference(log, features, force_heuristic=True)
-                # Deliberately NOT stored in the parser cache: in enforce mode
-                # every sighting must advance the cluster's graduation counter.
-            else:  # "discover" (shadow mode, or a graduating novel cluster)
-                mode = "Discovery"
-                rule = discovery_engine.run_inference(log, features)
-                parser.store_rule(features, rule)
-                if tier_result["template"]:
-                    template_tier.learn_rule(
-                        tier_result["template"], rule, tier_result["cluster_id"]
-                    )
+            if cached_rule:
+                # Fingerprint cache hit (legacy or previous variation)
+                rule = cached_rule
+                mode = "Cached"
+                # Promote to family cache if known family
+                if is_known_family:
+                    parser.store_family_rule(family, rule)
+                tier_result = {"kind": "fingerprint", "template": None, "cluster_id": None, "gate": {}, "family": family}
+            else:
+                # No fingerprint: consult Drain template tier
+                tier_result = template_tier.decide(log, GATE)
+                tier_result["family"] = family
+
+                if tier_result["kind"] == "rule":
+                    rule = tier_result["rule"]
+                    # Unify to Cached for deterministic UI, but keep template_rule_hits stat
+                    mode = "Cached"
+                    parser.store_rule(features, rule)
+                    if is_known_family:
+                        parser.store_family_rule(family, rule)
+                elif tier_result["kind"] == "quarantined":
+                    mode = "Quarantined"
+                    rule = discovery_engine.run_inference(log, features, force_heuristic=True)
+                    # Do NOT store in family cache while quarantined
+                else:
+                    mode = "Discovery"
+                    rule = discovery_engine.run_inference(log, features)
+                    parser.store_rule(features, rule)
+                    if is_known_family:
+                        parser.store_family_rule(family, rule)
+                    if tier_result.get("template"):
+                        template_tier.learn_rule(
+                            tier_result["template"], rule, tier_result["cluster_id"]
+                        )
 
         parsed = parser.parse_with_rule(log, rule)
         normalized = normalizer.normalize(parsed, raw_log=log)
@@ -207,13 +242,14 @@ def process_record(log: str) -> dict:
         resp = {
             "mode": mode,
             "format": rule.get("signature", "Unknown Signature"),
+            "family": family,
             "inferred_by": rule.get("inferred_by"),
             "llm_error": rule.get("llm_error") if mode in ("Discovery", "Quarantined") else None,
             "latency_ms": latency_ms,
             "extracted_fields": parsed.get("parsed_fields", {}),
             "normalized": normalized,
-            "template": (tier_result["template"] or "")[:300] or None,
-            "cluster_id": tier_result["cluster_id"],
+            "template": (tier_result.get("template") or "")[:300] or None,
+            "cluster_id": tier_result.get("cluster_id"),
         }
         gate_info = tier_result.get("gate") or {}
         if gate_info.get("loaded"):
@@ -222,7 +258,7 @@ def process_record(log: str) -> dict:
                 "distance": gate_info.get("distance"),
                 "family_guess": gate_info.get("family_guess"),
             }
-        if tier_result["kind"] == "quarantined":
+        if tier_result.get("kind") == "quarantined":
             resp["quarantine"] = {
                 "count": tier_result.get("quarantine_count"),
                 "graduate_after": tier_result.get("graduate_after"),
@@ -233,6 +269,7 @@ def process_record(log: str) -> dict:
         return {
             "mode": "Error",
             "format": "n/a",
+            "family": "unknown",
             "inferred_by": None,
             "latency_ms": round((time.perf_counter() - start_time) * 1000, 2),
             "extracted_fields": {},
@@ -249,17 +286,15 @@ def ingest_logs(batch: LogBatch, request: Request):
 
 @app.get("/api/logs/cache")
 def get_cache():
-    return {"cache": parser.snapshot_cache()}
+    return {
+        "cache": parser.snapshot_cache(),
+        "family_cache": parser.snapshot_family_cache(),
+    }
 
 @app.get("/api/logs/templates")
 def get_templates():
-    """Drain3-mined templates across all ingested traffic: cluster sizes,
-    which clusters have learned rules, and tier statistics."""
     return template_tier.templates_view()
 
 @app.get("/api/logs/quarantine")
 def get_quarantine():
-    """Novel templates seen so far, with novelty-gate distances and raw
-    samples. With TPL_ENFORCE=1 these are the templates withheld from the
-    discovery engine until their cluster graduates."""
     return template_tier.quarantine_view()
