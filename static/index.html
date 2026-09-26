@@ -22,6 +22,7 @@
             </div>
             <div class="header-right">
                 <div id="health-badge" class="health-badge loading">Checking system…</div>
+                <button id="clear-cache-btn" class="small" title="Reset learned families, fingerprints, templates and quarantine">Clear Cache</button>
             </div>
         </header>
 
@@ -97,7 +98,7 @@ First line of a new family uses LLM once, all later lines of same family are cac
                         <button id="process-btn" class="primary">
                             <span class="btn-icon">▶</span> Analyze Logs
                         </button>
-                        <button id="clear-btn" class="secondary">Clear</button>
+                        <button id="clear-btn" class="secondary">Clear Input</button>
                     </div>
 
                     <div class="info-box">
@@ -145,14 +146,12 @@ First line of a new family uses LLM once, all later lines of same family are cac
                         <div id="tab-family" class="tab-pane active">
                             <div class="tab-header">
                                 <h3>Family Cache — deterministic, never evicted</h3>
-                                <button id="refresh-family-btn" class="small">Refresh</button>
                             </div>
                             <pre id="family-output">Loading…</pre>
                         </div>
                         <div id="tab-fingerprint" class="tab-pane">
                             <div class="tab-header">
                                 <h3>Fingerprint Cache (500 LRU)</h3>
-                                <button id="refresh-cache-btn" class="small">Refresh</button>
                             </div>
                             <pre id="cache-output">Loading…</pre>
                         </div>
@@ -160,7 +159,6 @@ First line of a new family uses LLM once, all later lines of same family are cac
                             <div class="tab-header">
                                 <h3>Drain3 Templates</h3>
                                 <span id="tier-stats" class="muted"></span>
-                                <button id="refresh-templates-btn" class="small">Refresh</button>
                             </div>
                             <table class="table">
                                 <thead><tr><th>Template</th><th>Count</th><th>Rule</th></tr></thead>
@@ -171,12 +169,11 @@ First line of a new family uses LLM once, all later lines of same family are cac
                             <div class="tab-header">
                                 <h3>Novel Format Quarantine (ML gate)</h3>
                                 <span id="gate-stats" class="muted"></span>
-                                <button id="refresh-quarantine-btn" class="small">Refresh</button>
                             </div>
                             <div id="quarantine-output" class="muted">No data</div>
                         </div>
                         <div id="tab-health" class="tab-pane">
-                            <div class="tab-header"><h3>System Health</h3><button id="refresh-health-btn" class="small">Refresh</button></div>
+                            <div class="tab-header"><h3>System Health</h3></div>
                             <pre id="health-output">Loading…</pre>
                         </div>
                     </div>
