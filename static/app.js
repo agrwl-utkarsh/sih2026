@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.disc.textContent = tot.disc;
     els.lat.textContent = tot.total ? `${(tot.latSum / tot.total).toFixed(1)} ms` : '—';
     els.saved.textContent = tot.total ? `${Math.round(tot.cached / tot.total * 100)}%` : '0%';
+    fetchHealth();
   };
 
   const fetchHealth = async () => {
@@ -71,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.input.value = '';
     els.results.innerHTML = '<div class="empty-state"><div class="empty-icon">◫</div><p>Results will appear here</p><small>Try CSV: first=Discovery, second=Cached</small></div>';
     els.hint.textContent = 'No logs processed yet';
-    tot = { total: 0, cached: 0, disc: 0, latSum: 0 }; updStats(); refreshAll();
+    tot = { total: 0, cached: 0, disc: 0, latSum: 0 }; updStats();
   });
 
   document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => {
@@ -79,22 +80,12 @@ document.addEventListener('DOMContentLoaded', () => {
     b.classList.add('active'); $(`tab-${b.dataset.tab}`).classList.add('active');
   }));
 
-  const refreshAll = () => { fetchHealth(); refreshCache(); refreshTemplates(); refreshQuarantine(); };
+  ['family','cache'].forEach(id => $(`refresh-${id}-btn`)?.addEventListener('click', refreshCache));
+  $('refresh-templates-btn').addEventListener('click', refreshTemplates);
+  $('refresh-quarantine-btn').addEventListener('click', refreshQuarantine);
+  $('refresh-health-btn').addEventListener('click', fetchHealth);
 
-  $('clear-cache-btn').addEventListener('click', async () => {
-    const btn = $('clear-cache-btn');
-    if (!confirm('Reset all learned families, fingerprints, templates and quarantine?')) return;
-    btn.disabled = true; btn.textContent = 'Clearing…';
-    try {
-      const res = await fetch('/api/logs/clear', { method: 'POST' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      refreshAll();
-      els.hint.textContent = 'Cache cleared — next log of each family is Discovery again';
-    } catch (e) { alert('Could not clear cache: ' + e.message); }
-    finally { btn.disabled = false; btn.textContent = 'Clear Cache'; }
-  });
-
-  refreshAll();
+  fetchHealth(); refreshCache(); refreshTemplates(); refreshQuarantine();
 
   els.run.addEventListener('click', async () => {
     const raw = els.input.value.trim();
@@ -148,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       els.results.prepend(frag);
       els.hint.textContent = `${data.processed_logs.length} log(s) • ${tot.cached} cached • ${tot.disc} discovery`;
-      updStats(); refreshAll();
+      updStats(); refreshCache(); refreshTemplates(); refreshQuarantine();
     } catch (e) { alert('Error: ' + e.message); }
     finally { els.run.disabled = false; els.run.innerHTML = '<span class="btn-icon">▶</span> Analyze Logs'; }
   });
