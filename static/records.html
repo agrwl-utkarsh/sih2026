@@ -19,10 +19,6 @@
                 <span class="brand-name">Record Explorer</span>
             </div>
             <div class="titlebar-right">
-                <label class="select-wrap">
-                    <span class="select-label">run</span>
-                    <select id="run-select" title="Runs kept by the console (newest first)"></select>
-                </label>
                 <button id="download-run" class="btn btn-ghost" title="Download every record in this run as JSON lines">
                     <span class="btn-key">↓</span>jsonl
                 </button>
@@ -38,12 +34,6 @@
             <div class="tsep"></div>
             <div class="tcell"><span class="tlabel">discovery</span><span class="tvalue t-warn" id="meta-discovery">—</span></div>
             <div class="tsep"></div>
-            <div class="tcell"><span class="tlabel">held</span><span class="tvalue t-info" id="meta-quarantined">—</span></div>
-            <div class="tsep"></div>
-            <div class="tcell"><span class="tlabel">avg lat</span><span class="tvalue" id="meta-latency">—</span></div>
-            <div class="tsep"></div>
-            <div class="tcell"><span class="tlabel">ingest wall</span><span class="tvalue t-dim" id="meta-wall">—</span></div>
-            <div class="tsep"></div>
             <div class="tcell"><span class="tlabel">captured</span><span class="tvalue t-dim" id="meta-at">—</span></div>
         </div>
 
@@ -52,8 +42,6 @@
             <input id="search" class="search-input" type="search" autocomplete="off" spellcheck="false"
                    placeholder="search message, raw line or field values…   ( / )">
             <div class="chip-row" id="mode-filters" role="group" aria-label="Filter by processing mode"></div>
-            <div class="toolbar-spacer"></div>
-            <span class="pane-hint" id="filter-hint">—</span>
         </div>
 
         <!-- ── list + detail ──────────────────────────────────────── -->
@@ -63,8 +51,6 @@
                     <h2 class="pane-title">records</h2>
                     <div class="pane-tools">
                         <span class="pane-hint" id="page-hint">—</span>
-                        <button id="prev-page" class="btn btn-mini" title="Previous page">prev</button>
-                        <button id="next-page" class="btn btn-mini" title="Next page">next</button>
                     </div>
                 </div>
                 <div id="rec-list" class="rec-list" tabindex="0" role="listbox" aria-label="Parsed records"></div>
@@ -73,18 +59,10 @@
             <section class="pane pane-detail">
                 <div class="pane-head">
                     <h2 class="pane-title">record detail</h2>
-                    <div class="pane-tools">
-                        <span class="pane-hint" id="detail-hint">↑ ↓ to step through records</span>
-                        <button id="copy-json" class="btn btn-mini">copy normalized json</button>
-                    </div>
                 </div>
                 <div id="detail" class="detail"></div>
             </section>
         </main>
-
-        <footer class="footer">
-            <span>record explorer · normalized output for the last <span id="store-count">0</span> ingest runs · nothing leaves the browser</span>
-        </footer>
     </div>
 
     <script src="/static/ui.js"></script>
