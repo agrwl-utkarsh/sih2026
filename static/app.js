@@ -1,5 +1,5 @@
 /* ============================================================
-   ulp · operator console — frontend controller
+   Universal Log Pre-processing Framework · frontend controller
    Preserves: ingest, sample fixtures, cache reset, inspector.
    ============================================================ */
 
@@ -73,7 +73,6 @@
       clearCache: $('clear-cache-btn'),
       stream: $('results-container'),
       hint: $('results-hint'),
-      health: $('health-badge'),
       slMode: $('sl-mode'),
       slCount: $('sl-count'),
       // telemetry
@@ -243,32 +242,41 @@
       return row;
     };
 
+    /** Keep parsed values visible without requiring a record card to be expanded. */
+    const renderSummary = (records) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'table-wrap output-table-wrap';
+      wrap.innerHTML = `
+        <table class="table output-table" aria-label="Parsed output table">
+          <thead><tr><th class="num">#</th><th>mode</th><th>format</th><th>timestamp</th><th>severity</th><th>source</th><th>message</th></tr></thead>
+          <tbody>${records.map((r, i) => {
+            const norm = r.normalized || {};
+            const mode = String(r.mode || 'unknown');
+            const cls = MODE_CLASS[mode] || 'other';
+            return `<tr>
+              <td class="num">${i + 1}</td>
+              <td><span class="mode-tag ${cls}">${esc(mode)}</span></td>
+              <td>${esc(r.format || '—')}</td>
+              <td>${esc(norm.timestamp || '—')}</td>
+              <td>${esc(norm.severity || '—')}</td>
+              <td>${esc(norm.source || '—')}</td>
+              <td class="output-message" title="${esc(clip(norm.message || norm.raw || r.error || '', 300))}">${esc(clip(norm.message || norm.raw || r.error || '—', 200))}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>`;
+      return wrap;
+    };
+
     const scrollToBottom = () => { els.stream.scrollTop = els.stream.scrollHeight; };
 
     /* ── inspector ─────────────────────────────────────── */
     const fetchHealth = async () => {
       const h = await fetchJSON('/api/health');
-      if (!h) {
-        els.health.textContent = 'system offline';
-        els.health.className = 'health-badge is-error';
-        return;
-      }
+      if (!h) return;
       const families = h.family_cache?.families_learned ?? 0;
       els.fams.textContent = num(families);
       els.counts.family.textContent = num(families);
 
-      const tt = h.template_tier || {};
-      const gate = h.format_gate || {};
-      const bits = [];
-      if (h.llm_configured && h.provider) bits.push(`${h.provider}/${h.model}`);
-      else bits.push('heuristic');
-      bits.push(`${families} fam`);
-      if (tt.drain3_available === false) bits.push('drain3 off');
-      if (tt.enforce_mode) bits.push('enforce');
-      if (gate.loaded === false) bits.push('gate off');
-
-      els.health.textContent = bits.join(' · ');
-      els.health.className = `health-badge ${h.llm_configured ? 'is-ok' : 'is-warn'}`;
       els.healthOut.innerHTML = highlightJSON(h);
     };
 
@@ -405,7 +413,14 @@
     const runIngest = async () => {
       const raw = els.input.value.trim();
       if (!raw) {
-        alert('Paste some logs first');
+        els.stream.querySelector('.stream-empty')?.remove();
+        const error = document.createElement('div');
+        error.className = 'stream-error';
+        error.setAttribute('role', 'alert');
+        error.textContent = 'Paste logs or load a sample, then click run ingest.';
+        els.stream.querySelector('.stream-error')?.remove();
+        els.stream.appendChild(error);
+        els.hint.textContent = 'awaiting input';
         els.input.focus();
         return;
       }
@@ -414,6 +429,14 @@
       els.run.disabled = true;
       els.runLabel.textContent = 'running…';
       setMode('running', 'running');
+      els.stream.querySelector('.stream-empty')?.remove();
+      els.stream.querySelectorAll('.stream-error').forEach((error) => error.remove());
+      const pending = document.createElement('div');
+      pending.className = 'stream-pending';
+      pending.setAttribute('role', 'status');
+      pending.textContent = 'Processing logs…';
+      els.stream.appendChild(pending);
+      scrollToBottom();
 
       const wallStart = performance.now();
       try {
@@ -430,17 +453,20 @@
         }
 
         const data = await res.json();
-        const records = data.processed_logs || [];
+        if (!Array.isArray(data.processed_logs) || !data.processed_logs.length) {
+          throw new Error('The server returned no parsed records. Check the input and try again.');
+        }
+        const records = data.processed_logs;
         const wall = performance.now() - wallStart;
 
-        const empty = els.stream.querySelector('.stream-empty');
-        if (empty) empty.remove();
+        pending.remove();
 
         runCount += 1;
         const divider = document.createElement('div');
         divider.className = 'run-divider';
         divider.innerHTML = `<span>run #${runCount} · ${records.length} line${records.length === 1 ? '' : 's'} · ${wall.toFixed(1)}ms</span>`;
         els.stream.appendChild(divider);
+        els.stream.appendChild(renderSummary(records));
 
         const frag = document.createDocumentFragment();
         records.forEach((r, i) => {
@@ -457,7 +483,8 @@
           if (r.mode === 'Discovery') totals.disc += 1;
         });
         els.stream.appendChild(frag);
-        scrollToBottom();
+        // Show the new run's table first, not the bottom of its detail cards.
+        els.stream.scrollTop += divider.getBoundingClientRect().top - els.stream.getBoundingClientRect().top;
 
         els.hint.textContent = `${num(records.length)} record(s) · ${num(totals.cached)} cached · ${num(totals.disc)} discovery`;
         els.lastrun.textContent = `${wall.toFixed(0)}ms`;
@@ -466,7 +493,14 @@
         refreshAll();
       } catch (e) {
         setMode('error', 'error');
-        alert('Ingest failed: ' + e.message);
+        pending.remove();
+        const error = document.createElement('div');
+        error.className = 'stream-error';
+        error.setAttribute('role', 'alert');
+        error.textContent = `Ingest failed: ${e.message}`;
+        els.stream.appendChild(error);
+        els.hint.textContent = 'ingest failed';
+        scrollToBottom();
       } finally {
         els.run.disabled = false;
         els.runLabel.textContent = 'run ingest';

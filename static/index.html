@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ulp ▸ universal log pipeline</title>
+    <title>Universal Log Pre-processing Framework</title>
     <link rel="stylesheet" href="/static/styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,12 +16,9 @@
         <header class="titlebar">
             <div class="brand">
                 <span class="brand-mark">▮</span>
-                <span class="brand-name">ulp</span>
-                <span class="brand-sep">/</span>
-                <span class="brand-sub">universal log pipeline</span>
+                <span class="brand-name">Universal Log Pre-processing Framework</span>
             </div>
             <div class="titlebar-right">
-                <span id="health-badge" class="health-badge is-loading">connecting…</span>
                 <button id="clear-cache-btn" class="btn btn-ghost" title="Reset learned families, fingerprints, templates and quarantine">
                     <span class="btn-key">reset</span>cache
                 </button>
@@ -50,7 +47,6 @@
 
             <section class="pane pane-editor">
                 <div class="pane-head">
-                    <span class="pane-id">01</span>
                     <h2 class="pane-title">ingest</h2>
                     <div class="pane-tools">
                         <label class="select-wrap" for="sample-select">
@@ -104,7 +100,6 @@
 
             <section class="pane pane-stream">
                 <div class="pane-head">
-                    <span class="pane-id">02</span>
                     <h2 class="pane-title">parsed output</h2>
                     <div class="pane-tools">
                         <span class="pane-hint" id="results-hint">awaiting input</span>
@@ -118,7 +113,6 @@
         <!-- ── runtime inspector ──────────────────────────────────── -->
         <section class="pane pane-inspector">
             <div class="pane-head">
-                <span class="pane-id">03</span>
                 <h2 class="pane-title">runtime inspector</h2>
                 <div class="pane-tools">
                     <span class="pane-hint" id="inspector-hint">live</span>
