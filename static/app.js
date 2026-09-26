@@ -7,7 +7,6 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
-  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
   const fetchJSON = async (url, opts) => {
     try {
@@ -32,39 +31,22 @@
       gutter: $('gutter'),
       run: $('process-btn'),
       runLabel: $('process-label'),
-      clear: $('clear-btn'),
       clearStream: $('clear-stream-btn'),
-      refreshInspector: $('refresh-inspector-btn'),
       clearCache: $('clear-cache-btn'),
       stream: $('results-container'),
-      hint: $('results-hint'),
       slMode: $('sl-mode'),
       slCount: $('sl-count'),
       // telemetry
       total: $('stat-total'),
       cached: $('stat-cached'),
       disc: $('stat-discovery'),
-      fams: $('stat-families'),
-      lat: $('stat-latency'),
       saved: $('stat-saved'),
-      lastrun: $('stat-lastrun'),
-      // inspector
-      familyOut: $('family-output'),
+      // inspector — fingerprint cache only
       cacheOut: $('cache-output'),
-      healthOut: $('health-output'),
-      tierStats: $('tier-stats'),
-      templatesBody: $('templates-body'),
-      quarantineOut: $('quarantine-output'),
-      gateStats: $('gate-stats'),
-      counts: {
-        family: $('count-family'),
-        fingerprint: $('count-fingerprint'),
-        templates: $('count-templates'),
-        quarantine: $('count-quarantine')
-      }
+      fingerprintCount: $('count-fingerprint')
     };
 
-    const totals = { total: 0, cached: 0, disc: 0, latSum: 0 };
+    const totals = { total: 0, cached: 0, disc: 0 };
     let runCount = 0;
 
     /** Keep only the newest result groups expanded; older runs collapse to one line. */
@@ -75,13 +57,11 @@
       els.total.textContent = num(totals.total);
       els.cached.textContent = num(totals.cached);
       els.disc.textContent = num(totals.disc);
-      els.lat.textContent = totals.total ? `${(totals.latSum / totals.total).toFixed(1)}ms` : '—';
       els.saved.textContent = totals.total ? `${Math.round((totals.cached / totals.total) * 100)}%` : '0%';
     };
 
     const resetTotals = () => {
-      totals.total = totals.cached = totals.disc = totals.latSum = 0;
-      els.lastrun.textContent = '—';
+      totals.total = totals.cached = totals.disc = 0;
       paintTelemetry();
     };
 
@@ -124,13 +104,10 @@
       `/records?run=${encodeURIComponent(run.id)}${index == null ? '' : `&i=${index + 1}`}`;
 
     const renderEmpty = () => {
-      const last = Store.latestRun();
       els.stream.innerHTML = `
         <div class="stream-empty">
           <span class="se-mark">▤</span>
           <p>no records yet</p>
-          <small>run a fixture — first sighting is <b>discovery</b>, repeats are <b>cached</b></small>
-          ${last ? `<p class="se-last"><a class="btn btn-mini" href="${esc(explorerHref(last))}">open last run · ${num(last.counts?.total ?? last.records.length)} records →</a></p>` : ''}
         </div>`;
     };
 
@@ -247,100 +224,14 @@
 
     const scrollToBottom = () => { els.stream.scrollTop = els.stream.scrollHeight; };
 
-    /* ── inspector ─────────────────────────────────────── */
-    const fetchHealth = async () => {
-      const h = await fetchJSON('/api/health');
-      if (!h) return;
-      const families = h.family_cache?.families_learned ?? 0;
-      els.fams.textContent = num(families);
-      els.counts.family.textContent = num(families);
-
-      els.healthOut.innerHTML = highlightJSON(h);
-    };
-
+    /* ── inspector: fingerprint cache only ─────────────── */
     const refreshCache = async () => {
       const d = await fetchJSON('/api/logs/cache');
       if (!d) return;
-      const fam = d.family_cache || {};
       const fps = Array.isArray(d.cache) ? d.cache : [];
-      els.counts.fingerprint.textContent = num(fps.length);
-      els.familyOut.innerHTML = highlightJSON(fam);
-      els.cacheOut.innerHTML = highlightJSON(d.cache ?? []);
+      els.fingerprintCount.textContent = num(fps.length);
+      els.cacheOut.innerHTML = highlightJSON(fps);
     };
-
-    const refreshTemplates = async () => {
-      const t = await fetchJSON('/api/logs/templates');
-      if (!t) return;
-      const tpls = t.templates || [];
-      els.counts.templates.textContent = num(t.clusters ?? 0);
-      els.tierStats.textContent =
-        `${num(t.clusters)} clusters · ${num(t.rules_learned)} rules · ${t.rule_backend ?? '—'}` +
-        `${t.enforce_mode ? ' · ENFORCE' : ' · shadow'}`;
-
-      els.templatesBody.innerHTML = tpls.length
-        ? tpls.map((tpl) => `
-            <tr>
-              <td title="cluster #${esc(tpl.cluster_id)}">${esc(tpl.template)}</td>
-              <td class="num">${num(tpl.size)}</td>
-              <td class="${tpl.has_rule ? 'has-rule' : 'no-rule'}">${tpl.has_rule ? 'rule ✓' : '—'}</td>
-            </tr>`).join('')
-        : `<tr><td colspan="3" class="dim">no templates mined yet</td></tr>`;
-    };
-
-    const refreshQuarantine = async () => {
-      const q = await fetchJSON('/api/logs/quarantine');
-      if (!q) return;
-      const items = q.items || [];
-      const novelCount = num(q.novel_templates ?? 0);
-      els.counts.quarantine.textContent = novelCount;
-      els.gateStats.textContent =
-        `${novelCount} novel format${Number(q.novel_templates) === 1 ? '' : 's'} · ${q.enforce_mode ? 'enforce' : 'shadow mode'}`;
-
-      els.quarantineOut.classList.toggle('dim', items.length === 0);
-      els.quarantineOut.innerHTML = items.length
-        ? items.slice(0, 20).map((item) => {
-            const g = item.gate || {};
-            const seen = Number(item.count) || 0;
-            const sightings = `${num(seen)} sighting${seen === 1 ? '' : 's'}`;
-            const family = g.family_guess
-              ? ` · ${g.novel ? 'closest known family' : 'matched family'}: ${esc(g.family_guess)}`
-              : '';
-            const evidence = g.distance == null
-              ? 'novelty score unavailable'
-              : `novelty distance ${esc(g.distance)}${g.threshold == null ? '' : ` · threshold ${esc(g.threshold)}`}`;
-            return `
-              <div class="q-item">
-                <div class="q-head">
-                  <span class="q-flag ${g.novel ? 'novel' : 'watched'}" title="${evidence}">${g.novel ? 'novel' : 'known'}</span>
-                  <span class="q-meta">${sightings}${family}</span>
-                  — <span class="q-tpl">${esc(item.template ?? '')}</span>
-                </div>
-                <pre class="q-sample">${esc((item.samples || [])[0] || '—')}</pre>
-              </div>`;
-          }).join('')
-        : 'no novel templates recorded';
-    };
-
-    const refreshAll = () => {
-      fetchHealth();
-      refreshCache();
-      refreshTemplates();
-      refreshQuarantine();
-    };
-
-    /* ── inspector tabs ────────────────────────────────── */
-    $$('.tab').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        $$('.tab').forEach((b) => b.classList.toggle('is-active', b === btn));
-        $$('.tab-pane').forEach((p) => p.classList.toggle('is-active', p.id === `tab-${btn.dataset.tab}`));
-      });
-    });
-
-    els.refreshInspector.addEventListener('click', () => {
-      els.refreshInspector.disabled = true;
-      refreshAll();
-      setTimeout(() => { els.refreshInspector.disabled = false; }, 350);
-    });
 
     /* ── sample fixtures ───────────────────────────────── */
     els.sample.addEventListener('change', (e) => {
@@ -351,24 +242,11 @@
       setMode('loaded');
     });
 
-    /* ── buffer / stream controls ──────────────────────── */
-    els.clear.addEventListener('click', () => {
-      els.input.value = '';
-      els.sample.value = '';
-      syncGutter();
-      renderEmpty();
-      els.hint.textContent = 'awaiting input';
-      resetTotals();
-      setMode('idle');
-      refreshAll();
-      els.input.focus();
-    });
-
+    /* ── stream controls ───────────────────────────────── */
     els.clearStream.addEventListener('click', () => {
       renderEmpty();
       runCount = 0;
       resetTotals();
-      els.hint.textContent = 'awaiting input';
     });
 
     /* ── cache reset ───────────────────────────────────── */
@@ -381,12 +259,7 @@
       try {
         const res = await fetch('/api/logs/clear', { method: 'POST' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json().catch(() => ({}));
-        const c = data.cleared || {};
-        refreshAll();
-        els.hint.textContent =
-          `cache reset — ${num(c.family_cache)} fam, ${num(c.fingerprint_cache)} fp, ` +
-          `${num(c.templates)} tpl, ${num(c.quarantine)} quarantined`;
+        refreshCache();
         setMode('cache reset', 'done');
       } catch (e) {
         alert('Could not clear cache: ' + e.message);
@@ -407,7 +280,6 @@
         error.textContent = 'Paste logs or load a sample, then click run ingest.';
         els.stream.querySelector('.stream-error')?.remove();
         els.stream.appendChild(error);
-        els.hint.textContent = 'awaiting input';
         els.input.focus();
         return;
       }
@@ -450,7 +322,6 @@
 
         // Hand the whole run to the explorer page before rendering anything.
         const run = Store.saveRun({ records, lines: logs, wallMs: wall });
-        if (!run) els.hint.title = 'browser storage full — the explorer will show no run for this batch';
 
         runCount += 1;
         const label = `run #${runCount} · ${num(records.length)} record${records.length === 1 ? '' : 's'} · ${wall.toFixed(1)}ms`;
@@ -471,18 +342,15 @@
 
         records.forEach((r) => {
           totals.total += 1;
-          totals.latSum += Number(r.latency_ms) || 0;
           if (r.mode === 'Cached') totals.cached += 1;
           if (r.mode === 'Discovery') totals.disc += 1;
         });
         // Show the new run's table first, not the bottom of its cards.
         els.stream.scrollTop += divider.getBoundingClientRect().top - els.stream.getBoundingClientRect().top;
 
-        els.hint.textContent = `${num(records.length)} record(s) · ${num(totals.cached)} cached · ${num(totals.disc)} discovery`;
-        els.lastrun.textContent = `${wall.toFixed(0)}ms`;
         paintTelemetry();
         setMode('done', 'done');
-        refreshAll();
+        refreshCache();
       } catch (e) {
         setMode('error', 'error');
         pending.remove();
@@ -491,7 +359,6 @@
         error.setAttribute('role', 'alert');
         error.textContent = `Ingest failed: ${e.message}`;
         els.stream.appendChild(error);
-        els.hint.textContent = 'ingest failed';
         scrollToBottom();
       } finally {
         els.run.disabled = false;
@@ -513,7 +380,7 @@
     renderEmpty();
     syncGutter();
     paintTelemetry();
-    refreshAll();
+    refreshCache();
     setMode('idle');
   });
 })();

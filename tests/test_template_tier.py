@@ -168,3 +168,64 @@ def test_console_and_explorer_pages_are_served():
     # the shared pieces the explorer depends on
     for symbol in ("highlightJSON", "recordNotes", "saveRun", "getRun"):
         assert symbol in ui.text
+
+
+def test_console_inspector_shows_only_fingerprints():
+    """The runtime inspector is the fingerprint cache. Family, template,
+    quarantine and health tabs are not part of the console."""
+    html = client.get("/").text
+    assert 'id="cache-output"' in html
+    assert 'id="count-fingerprint"' in html
+    assert "fingerprints" in html
+    for gone in (
+        'id="family-output"',
+        'id="templates-body"',
+        'id="quarantine-output"',
+        'id="health-output"',
+        "data-tab=",
+        'id="refresh-inspector-btn"',
+        "tier-1 regex fast path",
+        'id="clear-btn"',
+        'id="results-hint"',
+        'id="stat-families"',
+        'id="stat-latency"',
+        'id="stat-lastrun"',
+        "clear buffer",
+        "Your parsed logs will appear here",
+        "open last run",
+    ):
+        assert gone not in html
+
+
+def test_sample_fixtures_are_three_lines_of_one_family():
+    """Each fixture is three lines of one family, so a fresh run is
+    1 discovery + 2 cache hits."""
+    from html.parser import HTMLParser
+
+    class Options(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.values = []
+        def handle_starttag(self, tag, attrs):
+            if tag != "option":
+                return
+            value = dict(attrs).get("value")
+            if value:
+                self.values.append(value)
+
+    parser_html = Options()
+    parser_html.feed(client.get("/").text)
+    assert len(parser_html.values) == 14
+    for value in parser_html.values:
+        lines = [ln for ln in value.splitlines() if ln.strip()]
+        assert len(lines) == 3, value
+        families = {parser.detect_family(ln) for ln in lines}
+        assert len(families) == 1, (families, lines)
+        parser.cache.clear()
+        parser.family_cache.clear()
+        parser._parsed_fps.clear()
+        template_tier.reset()
+        res = client.post("/api/logs/ingest", json={"logs": lines})
+        assert res.status_code == 200, res.text
+        modes = [row["mode"] for row in res.json()["processed_logs"]]
+        assert modes == ["Discovery", "Cached", "Cached"], (modes, lines)
