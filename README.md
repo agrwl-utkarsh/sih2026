@@ -1,4 +1,4 @@
-# Universal Log Pre-processing Pipeline (SIH 2026)
+# Universal Log Pre-processing Framework (SIH 2026)
 
 This project provides a robust, format-agnostic log pre-processing pipeline designed to ingest, parse, and normalize arbitrary log data streams into a unified common schema. 
 
