@@ -197,6 +197,6 @@ window.ULP = (() => {
   return {
     esc, escText, clip, num, highlightJSON,
     MODE_CLASS, MODES, modeClass, recordNotes, gateRows, fieldsOf,
-    Store: { saveRun, listRuns, getRun, latestRun, clearRuns, available: !!safeStorage }
+    Store: { saveRun, listRuns, getRun, getRuns: readRuns, latestRun, clearRuns, available: !!safeStorage }
   };
 })();
