@@ -669,7 +669,6 @@ pre.json.is-hidden { display: none; }
     border: 1px solid var(--line);
     border-radius: var(--pane-radius);
 }
-.toolbar-spacer { flex: 1 1 auto; }
 .search-input {
     flex: 1 1 320px;
     min-width: 220px;
@@ -707,7 +706,7 @@ pre.json.is-hidden { display: none; }
 /* list + detail */
 .explorer-main {
     display: grid;
-    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+    grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
     gap: 10px;
     align-items: start;
 }
@@ -717,19 +716,21 @@ pre.json.is-hidden { display: none; }
     max-height: 620px;
     min-height: 300px;
     overflow-y: auto;
-    padding: 4px;
+    padding: 3px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
 }
 .rec-list:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 
+/* One row per record: mode word, index, message, and — only when they
+   earn the space — a loud severity and the clock time. The mode keeps its
+   colour but loses the filled box, so a long list reads as text, not chips. */
 .rl-item {
-    display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr);
+    display: flex;
     align-items: baseline;
-    gap: 6px;
-    padding: 5px 7px;
+    gap: 7px;
+    padding: 3px 7px;
     border: 1px solid transparent;
     border-left: 2px solid var(--line);
     border-radius: 2px;
@@ -737,21 +738,31 @@ pre.json.is-hidden { display: none; }
 }
 .rl-item:hover { background: var(--surface-2); }
 .rl-item.is-selected { background: var(--surface-3); border-color: var(--line-2); border-left-color: var(--accent); }
-.rl-index { font-size: 10px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.rl-item .mode-tag { background: none; border-color: transparent; padding: 0; }
+.rl-index { font-size: 10px; color: var(--text-3); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .rl-msg {
+    flex: 1 1 auto;
+    min-width: 0;
     font-size: 11px;
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.rl-meta {
-    grid-column: 2 / -1;
+.rl-sev {
+    flex-shrink: 0;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.rl-sev.is-err { color: var(--err); }
+.rl-sev.is-warn { color: var(--warn); }
+.rl-when {
+    flex-shrink: 0;
     font-size: 9.5px;
     color: var(--text-3);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
 }
 
 .detail {
@@ -765,8 +776,6 @@ pre.json.is-hidden { display: none; }
 }
 .detail-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .detail-index { font-size: 10.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
-.detail-spacer { flex: 1 1 auto; }
-.detail-nav { display: flex; gap: 4px; }
 .detail-section h4 {
     font-size: 9.5px;
     text-transform: uppercase;

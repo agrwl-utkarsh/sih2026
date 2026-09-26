@@ -6,7 +6,7 @@
    has to build a detail card for every line. It reads the run the
    console captured (ULP.Store) and shows:
 
-     · a virtual page of records (~200 rows) in the left list
+     · the record list, grown 200 rows at a time as you scroll
      · the selected record's full JSON in one detail panel
      · search + mode filters across the whole run, not just the page
    ============================================================ */
@@ -16,26 +16,26 @@
   const { esc, num, highlightJSON, MODES, modeClass, recordNotes, gateRows, fieldsOf, Store } = window.ULP;
   const $ = (id) => document.getElementById(id);
 
-  const PAGE = 200;
+  const PAGE = 200;          // rows the list grows by as you scroll
+
+  /** Plain words for the list rows — "quarantined" is too wide for the pane. */
+  const SHORT_MODE = { Cached: 'cached', Discovery: 'discovery', Quarantined: 'held', Error: 'error' };
+
+  /** Severities worth flagging inline; the rest stay in the detail pane. */
+  const LOUD_SEV = new Set(['warn', 'warning', 'error', 'err', 'critical', 'crit',
+                            'fatal', 'alert', 'emerg', 'emergency']);
 
   const els = {
-    runSelect: $('run-select'),
     download: $('download-run'),
     meta: {
-      total: $('meta-total'), cached: $('meta-cached'), discovery: $('meta-discovery'),
-      quarantined: $('meta-quarantined'), latency: $('meta-latency'), wall: $('meta-wall'), at: $('meta-at')
+      total: $('meta-total'), cached: $('meta-cached'),
+      discovery: $('meta-discovery'), at: $('meta-at')
     },
     search: $('search'),
     filters: $('mode-filters'),
-    filterHint: $('filter-hint'),
     list: $('rec-list'),
     pageHint: $('page-hint'),
-    prev: $('prev-page'),
-    next: $('next-page'),
-    detail: $('detail'),
-    detailHint: $('detail-hint'),
-    copy: $('copy-json'),
-    storeCount: $('store-count')
+    detail: $('detail')
   };
 
   const state = {
@@ -73,21 +73,8 @@
     els.meta.total.textContent = num(c.total ?? run.records.length);
     els.meta.cached.textContent = num(modes.Cached ?? 0);
     els.meta.discovery.textContent = num(modes.Discovery ?? 0);
-    els.meta.quarantined.textContent = num(modes.Quarantined ?? 0);
-    els.meta.latency.textContent = `${c.avg_latency_ms ?? '—'}ms`;
-    els.meta.wall.textContent = `${num(run.wall_ms)}ms`;
     els.meta.at.textContent = stamp(run.at);
     document.title = `${num(c.total ?? run.records.length)} records · Record Explorer`;
-    els.storeCount.textContent = num(Store.listRuns().length);
-  };
-
-  const renderRunPicker = () => {
-    const runs = Store.listRuns();
-    els.storeCount.textContent = num(runs.length);
-    els.runSelect.innerHTML = runs.length
-      ? runs.map((r) => `<option value="${esc(r.id)}">${esc(stamp(r.at))} · ${num(r.counts?.total ?? 0)} records</option>`).join('')
-      : '<option value="">no runs captured</option>';
-    if (state.run) els.runSelect.value = state.run.id;
   };
 
   /* ── filtering ───────────────────────────────────────── */
@@ -117,15 +104,6 @@
     renderDetail();
   };
 
-  const filteredHint = () => {
-    const total = state.run?.records.length ?? 0;
-    const shown = state.entries.length;
-    const bits = [];
-    if (state.mode !== 'All') bits.push(`mode: ${state.mode.toLowerCase()}`);
-    if (state.query) bits.push(`search: “${state.query}”`);
-    return bits.length ? `${num(shown)} of ${num(total)} match — ${bits.join(' · ')}` : `${num(total)} records · no filter`;
-  };
-
   /* ── list ────────────────────────────────────────────── */
 
   const pageCount = () => Math.max(1, Math.ceil(state.entries.length / PAGE));
@@ -139,41 +117,63 @@
       return `<button class="chip ${state.mode === m ? 'is-active' : ''}" data-mode="${esc(m)}">` +
              `${esc(m === 'All' ? 'all' : m.toLowerCase())} <span class="chip-count">${num(n)}</span></button>`;
     }).join('');
-    els.filterHint.textContent = filteredHint();
+  };
+
+  /**
+   * One list row, single line: mode · index · message, plus the only two
+   * meta bits worth scanning for — a loud severity and the clock time.
+   * Family, latency and the full timestamp live in the detail pane.
+   */
+  const rowHTML = ({ r, abs }) => {
+    const norm = r.normalized || {};
+    const msg = norm.message || norm.raw || r.error || '—';
+    const mode = String(r.mode || '?');
+    const on = abs === state.sel;
+
+    const ts = String(norm.timestamp || '');
+    const clock = ts.includes('T') ? ts.split('T')[1].replace('Z', '').replace(/\.\d+$/, '') : '';
+    const sev = String(norm.severity || '').toLowerCase();
+
+    return `
+      <div class="rl-item ${on ? 'is-selected' : ''}" data-abs="${abs}" role="option"
+           aria-selected="${on}" tabindex="-1">
+        <span class="mode-tag ${modeClass(mode)}">${esc(SHORT_MODE[mode] || mode.toLowerCase())}</span>
+        <span class="rl-index">${esc(absLabel(abs))}</span>
+        <span class="rl-msg" title="${esc(msg)}">${esc(msg)}</span>
+        ${LOUD_SEV.has(sev) ? `<span class="rl-sev ${/^(err|crit|fatal)/.test(sev) ? 'is-err' : 'is-warn'}">${esc(sev)}</span>` : ''}
+        ${clock ? `<span class="rl-when" title="${esc(ts)}">${esc(clock)}</span>` : ''}
+      </div>`;
+  };
+
+  /** Only speaks up while more rows are waiting further down the scroll. */
+  const updateListHint = () => {
+    const total = state.entries.length;
+    const shown = Math.min(total, (state.page + 1) * PAGE);
+    els.pageHint.textContent = !total ? 'no matches'
+      : shown < total ? `${num(shown)} of ${num(total)} · scroll for more`
+      : '';
   };
 
   const renderList = () => {
-    const { entries, page } = state;
-    const start = page * PAGE;
-    const slice = entries.slice(start, start + PAGE);
-    const total = entries.length;
+    const slice = state.entries.slice(0, (state.page + 1) * PAGE);
+    updateListHint();
 
-    els.pageHint.textContent = total
-      ? `${num(start + 1)}–${num(Math.min(start + PAGE, total))} of ${num(total)} · page ${num(page + 1)}/${num(pageCount())}`
-      : 'no matches';
-    els.prev.disabled = page === 0;
-    els.next.disabled = page >= pageCount() - 1;
-
-    if (!total) {
+    if (!slice.length) {
       els.list.innerHTML = `<div class="list-empty">${state.run && state.run.records.length
         ? 'nothing matches this filter — clear the search or pick another mode'
         : 'this run has no records'}</div>`;
       return;
     }
 
-    els.list.innerHTML = slice.map(({ r, abs }) => {
-      const norm = r.normalized || {};
-      const msg = norm.message || norm.raw || r.error || '—';
-      const when = (norm.timestamp || '').replace('T', ' ').replace('Z', '') || '—';
-      return `
-        <div class="rl-item ${abs === state.sel ? 'is-selected' : ''}" data-abs="${abs}" role="option"
-             aria-selected="${abs === state.sel}" tabindex="-1">
-          <span class="mode-tag ${modeClass(r.mode)}">${esc(String(r.mode || '?').toLowerCase())}</span>
-          <span class="rl-index">${esc(absLabel(abs))}</span>
-          <span class="rl-msg" title="${esc(msg)}">${esc(msg)}</span>
-          <span class="rl-meta">${esc(norm.severity || 'unknown')} · ${esc(when)}${r.family ? ` · ${esc(r.family)}` : ''} · ${esc(r.latency_ms ?? '—')}ms</span>
-        </div>`;
-    }).join('');
+    els.list.innerHTML = slice.map(rowHTML).join('');
+  };
+
+  /** The pager buttons are gone: hitting the bottom grows the list a page. */
+  const appendPage = () => {
+    const slice = state.entries.slice(state.page * PAGE, (state.page + 1) * PAGE);
+    if (!slice.length) return;
+    els.list.insertAdjacentHTML('beforeend', slice.map(rowHTML).join(''));
+    updateListHint();
   };
 
   /* ── detail ──────────────────────────────────────────── */
@@ -206,11 +206,6 @@
       <div class="detail-head">
         <span class="mode-tag ${modeClass(r.mode)}">${esc(String(r.mode || 'unknown').toLowerCase())}</span>
         <span class="detail-index">${esc(absLabel(state.sel))} of ${num(state.run.records.length)}</span>
-        <span class="detail-spacer"></span>
-        <span class="detail-nav">
-          <button class="btn btn-mini" data-step="-1" title="Previous record (↑)">↑</button>
-          <button class="btn btn-mini" data-step="1" title="Next record (↓)">↓</button>
-        </span>
       </div>
       ${notes.map((n) => `<div class="rec-note ${n.kind === 'hold' ? 'is-gate' : ''}">${esc(n.text)}</div>`).join('')}
       ${state.run.trimmed && !norm.raw ? '<div class="rec-note">raw line omitted for this run (browser storage limit)</div>' : ''}
@@ -241,7 +236,7 @@
       <div class="detail-empty">
         <span class="se-mark">▤</span>
         <p>no record selected</p>
-        <small>pick a row on the left, or step with ↑ / ↓</small>
+        <small>pick a row on the left</small>
       </div>`;
   };
 
@@ -255,10 +250,9 @@
         <small>the console keeps the last ${num(3)} runs in this browser</small>
         <p><a class="btn btn-mini" href="/">← back to the console</a></p>
       </div>`;
-    els.pageHint.textContent = '—';
-    els.filterHint.textContent = Store.available ? 'waiting for a run' : 'browser storage unavailable';
-    ['total', 'cached', 'discovery', 'quarantined', 'latency', 'wall', 'at'].forEach((k) => { els.meta[k].textContent = '—'; });
-    els.prev.disabled = els.next.disabled = els.download.disabled = els.copy.disabled = true;
+    els.pageHint.textContent = Store.available ? '' : 'browser storage unavailable';
+    ['total', 'cached', 'discovery', 'at'].forEach((k) => { els.meta[k].textContent = '—'; });
+    els.download.disabled = true;
   };
 
   /* ── selection & navigation ──────────────────────────── */
@@ -270,7 +264,7 @@
     const pos = state.entries.findIndex((e) => e.abs === state.sel);
     if (pos >= 0) {
       const page = Math.floor(pos / PAGE);
-      if (page !== state.page) { state.page = page; renderList(); }
+      if (page > state.page) { state.page = page; renderList(); }   // rows already rendered stay put
       else { markSelected(); }
     }
     renderDetail();
@@ -302,13 +296,11 @@
     if (item) select(Number(item.dataset.abs), { scroll: false });
   });
 
-  els.detail.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-step]');
-    if (btn) step(Number(btn.dataset.step));
-  });
-
-  els.prev.addEventListener('click', () => { if (state.page > 0) { state.page -= 1; renderList(); } });
-  els.next.addEventListener('click', () => { if (state.page < pageCount() - 1) { state.page += 1; renderList(); } });
+  els.list.addEventListener('scroll', () => {
+    if (state.page >= pageCount() - 1) return;
+    const { scrollTop, clientHeight, scrollHeight } = els.list;
+    if (scrollTop + clientHeight >= scrollHeight - 240) { state.page += 1; appendPage(); }
+  }, { passive: true });
 
   els.filters.addEventListener('click', (e) => {
     const chip = e.target.closest('.chip');
@@ -324,39 +316,6 @@
       state.query = els.search.value.trim().toLowerCase();
       applyFilter({ keepSelection: true });
     }, 120);
-  });
-
-  els.runSelect.addEventListener('change', () => {
-    const id = els.runSelect.value;
-    if (!id) return;
-    history.replaceState(null, '', `?run=${encodeURIComponent(id)}`);
-    loadRun(id);
-    renderRunPicker();
-    renderRunMeta();
-  });
-
-  els.copy.addEventListener('click', async () => {
-    if (!state.run) return;
-    const r = state.run.records[state.sel];
-    if (!r) return;
-    const text = JSON.stringify(r.normalized || {}, null, 2);
-    const done = () => {
-      els.copy.textContent = 'copied ✓';
-      setTimeout(() => { els.copy.textContent = 'copy normalized json'; }, 1200);
-    };
-    try {
-      await navigator.clipboard.writeText(text);
-      done();
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      try { document.execCommand('copy'); done(); } catch { els.copy.textContent = 'copy failed'; }
-      ta.remove();
-    }
   });
 
   els.download.addEventListener('click', () => {
@@ -397,8 +356,7 @@
   }
 
   const params = new URLSearchParams(location.search);
-  renderRunPicker();
-  loadRun(params.get('run'));
+  loadRun(params.get('run'));   // ?run=<id>, else the newest captured run
   if (!state.run) return;
   renderRunMeta();
 
