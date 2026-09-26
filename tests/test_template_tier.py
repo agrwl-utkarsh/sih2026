@@ -145,3 +145,26 @@ def test_health_reports_tier_and_gate():
     h = client.get("/api/health").json()
     assert h["template_tier"]["drain3_available"] is True
     assert h["format_gate"]["loaded"] == GATE.loaded
+
+
+# ------------------------------------------------------------- explorer ----
+
+def test_console_and_explorer_pages_are_served():
+    """The JSON view is a separate page: /records. Both shells must exist and
+    reference the shared toolkit, since the run store lives in ui.js."""
+    console = client.get("/")
+    assert console.status_code == 200
+    assert "text/html" in console.headers["content-type"]
+    assert '/static/ui.js' in console.text
+
+    explorer = client.get("/records")
+    assert explorer.status_code == 200
+    assert "text/html" in explorer.headers["content-type"]
+    assert "/static/ui.js" in explorer.text
+    assert "/static/records.js" in explorer.text
+
+    ui = client.get("/static/ui.js")
+    assert ui.status_code == 200
+    # the shared pieces the explorer depends on
+    for symbol in ("highlightJSON", "recordNotes", "saveRun", "getRun"):
+        assert symbol in ui.text

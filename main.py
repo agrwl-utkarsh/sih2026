@@ -21,6 +21,13 @@ if static_dir.exists():
 def read_index():
     return FileResponse(str(static_dir / "index.html"))
 
+@app.get("/records")
+def read_records():
+    """Record explorer: per-record normalized JSON, one page at a time.
+    The run itself lives in the browser (localStorage), so this is just the
+    shell — see static/records.js."""
+    return FileResponse(str(static_dir / "records.html"))
+
 discovery_engine = DiscoveryEngine()
 parser = UniversalParser()
 normalizer = Normalizer()
