@@ -42,7 +42,8 @@
       disc: $('stat-discovery'),
       saved: $('stat-saved'),
       // inspector — fingerprint cache only
-      cacheOut: $('cache-output')
+      cacheOut: $('cache-output'),
+      fingerprintCount: $('count-fingerprint')
     };
 
     const totals = { total: 0, cached: 0, disc: 0 };
@@ -267,6 +268,10 @@
       if (!d) return;
       const fps = Array.isArray(d.cache) ? d.cache : [];
       els.cacheOut.innerHTML = highlightJSON(fps);
+      // Guarded: markup and controller have drifted apart before (the badge was
+      // dropped in 50eb973 while this line survived), and an unguarded write
+      // would throw out of the DOMContentLoaded handler and kill every binding.
+      if (els.fingerprintCount) els.fingerprintCount.textContent = num(fps.length);
     };
 
     /* ── sample fixtures ───────────────────────────────── */

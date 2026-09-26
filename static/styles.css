@@ -594,6 +594,15 @@ pre.json.is-hidden { display: none; }
 .j-null { color: var(--text-3); }
 
 /* ── inspector: fingerprint cache only ──────────────────── */
+.inspector-count {
+    font-size: 9px;
+    font-variant-numeric: tabular-nums;
+    padding: 0 5px;
+    border-radius: 2px;
+    background: var(--surface-3);
+    color: var(--accent);
+    border: 1px solid rgba(127, 167, 212, 0.35);
+}
 .inspector-body { padding: 11px; }
 .inspector-body pre.json { max-height: 280px; }
 
