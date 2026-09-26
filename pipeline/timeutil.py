@@ -1,158 +1,107 @@
-import datetime
+import datetime, re
 import dateutil.parser
-import re
 
-MONTH_PATTERN = re.compile(r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*', re.IGNORECASE)
+MONTH_RE = re.compile(r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*', re.I)
+EPOCH_RANGES = [(1e8, 4.1e9, 1), (1e11, 4.1e12, 1e3), (1e14, 4.1e15, 1e6), (1e17, 4.1e18, 1e9)]
+LEN_DIV = {10: 1, 13: 1e3, 16: 1e6, 19: 1e9}
+
+def _utc_iso(dt: datetime.datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    dt = dt.astimezone(datetime.timezone.utc)
+    iso = dt.isoformat()
+    return iso.replace("+00:00", "Z") if iso.endswith("+00:00") else (iso if iso.endswith("Z") else iso + "Z")
+
+def _from_epoch(v: float) -> str | None:
+    for lo, hi, div in EPOCH_RANGES:
+        if lo <= v <= hi:
+            return _utc_iso(datetime.datetime.fromtimestamp(v / div, datetime.timezone.utc))
+    return None
 
 def parse_timestamp(value, now=None) -> str | None:
     if value is None or isinstance(value, bool) or value == "":
         return None
-        
     try:
-        # 1. Handle numeric epoch
         if isinstance(value, (int, float)):
-            ts = float(value)
-            # Seconds (1973 to 2100)
-            if 1e8 <= ts <= 4.1e9:
-                dt = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc)
-                return dt.isoformat().replace("+00:00", "Z")
-            # Milliseconds
-            elif 1e11 <= ts <= 4.1e12:
-                dt = datetime.datetime.fromtimestamp(ts / 1000.0, datetime.timezone.utc)
-                return dt.isoformat().replace("+00:00", "Z")
-            # Microseconds
-            elif 1e14 <= ts <= 4.1e15:
-                dt = datetime.datetime.fromtimestamp(ts / 1e6, datetime.timezone.utc)
-                return dt.isoformat().replace("+00:00", "Z")
-            # Nanoseconds
-            elif 1e17 <= ts <= 4.1e18:
-                dt = datetime.datetime.fromtimestamp(ts / 1e9, datetime.timezone.utc)
-                return dt.isoformat().replace("+00:00", "Z")
+            return _from_epoch(float(value))
+
+        s = str(value).strip().strip("[]\"'()")
+        if not s:
             return None
 
-        if not isinstance(value, str):
-            value = str(value)
-
-        clean_val = value.strip().strip("[]\"'()")
-        if not clean_val:
+        if s.isdigit():
+            div = LEN_DIV.get(len(s))
+            if div:
+                iv = int(s)
+                # quick range check using EPOCH_RANGES
+                for lo, hi, d in EPOCH_RANGES:
+                    if d == div and lo <= iv / (1 if d == 1 else 1) <= hi or (div == 1 and lo <= iv <= hi):
+                        if (div == 1 and 1e8 <= iv <= 4.1e9) or div != 1:
+                            return _utc_iso(datetime.datetime.fromtimestamp(iv / div, datetime.timezone.utc))
             return None
 
-        # Pure numeric string
-        if clean_val.isdigit():
-            val_int = int(clean_val)
-            l = len(clean_val)
-            if l == 10 and 1e8 <= val_int <= 4.1e9:
-                dt = datetime.datetime.fromtimestamp(val_int, datetime.timezone.utc)
-                return dt.isoformat().replace("+00:00", "Z")
-            elif l == 13 and 1e11 <= val_int <= 4.1e12:
-                dt = datetime.datetime.fromtimestamp(val_int / 1000.0, datetime.timezone.utc)
-                return dt.isoformat().replace("+00:00", "Z")
-            elif l == 16 and 1e14 <= val_int <= 4.1e15:
-                dt = datetime.datetime.fromtimestamp(val_int / 1e6, datetime.timezone.utc)
-                return dt.isoformat().replace("+00:00", "Z")
-            elif l == 19 and 1e17 <= val_int <= 4.1e18:
-                dt = datetime.datetime.fromtimestamp(val_int / 1e9, datetime.timezone.utc)
-                return dt.isoformat().replace("+00:00", "Z")
-            return None
-
-        # Float string epoch e.g. "1726756800.123"
-        if re.match(r"^\d{9,11}\.\d+$", clean_val):
+        if re.match(r"^\d{9,11}\.\d+$", s):
             try:
-                val_flt = float(clean_val)
-                if 1e8 <= val_flt <= 4.1e9:
-                    dt = datetime.datetime.fromtimestamp(val_flt, datetime.timezone.utc)
-                    return dt.isoformat().replace("+00:00", "Z")
+                fv = float(s)
+                if 1e8 <= fv <= 4.1e9:
+                    return _utc_iso(datetime.datetime.fromtimestamp(fv, datetime.timezone.utc))
             except Exception:
                 pass
 
-        # String must contain digits and at least one time/date delimiter or month name
-        if not re.search(r'\d', clean_val):
+        if not re.search(r"\d", s):
             return None
-        if not (re.search(r'[-/:T\s]', clean_val) or MONTH_PATTERN.search(clean_val)):
+        if not (re.search(r"[-/:T\s]", s) or MONTH_RE.search(s)):
             return None
 
-        # Normalize comma separated fractional seconds: 14:32:10,123 -> 14:32:10.123
-        norm_val = re.sub(r'(\d{2}:\d{2}:\d{2}),(\d{1,6})', r'\1.\2', clean_val)
+        s = re.sub(r"(\d{2}:\d{2}:\d{2}),(\d{1,6})", r"\1.\2", s)
 
-        # Handle Apache / NCSA timestamp format: dd/Mon/yyyy:hh:mm:ss with optional timezone
-        match_ncsa = re.match(r'^(\d{1,2}/[A-Za-z]{3}/\d{4}):(\d{2}:\d{2}:\d{2})(?:\s+([+\-]\d{4}))?$', norm_val)
-        if match_ncsa:
-            d_part, t_part, tz_part = match_ncsa.groups()
-            normalized_dt_str = f"{d_part} {t_part}"
-            if tz_part:
-                normalized_dt_str += f" {tz_part}"
+        m = re.match(r"^(\d{1,2}/[A-Za-z]{3}/\d{4}):(\d{2}:\d{2}:\d{2})(?:\s+([+\-]\d{4}))?$", s)
+        if m:
+            d_part, t_part, tz = m.groups()
+            txt = f"{d_part} {t_part}" + (f" {tz}" if tz else "")
             try:
-                dt = dateutil.parser.parse(normalized_dt_str)
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=datetime.timezone.utc)
-                dt = dt.astimezone(datetime.timezone.utc)
-                iso = dt.isoformat()
-                if iso.endswith("+00:00"):
-                    iso = iso.replace("+00:00", "Z")
-                if not iso.endswith("Z"):
-                    iso += "Z"
-                return iso
+                return _utc_iso(dateutil.parser.parse(txt))
             except Exception:
                 pass
 
-        # Handle MongoDB $date or ISO string
-        if "{" in norm_val and "$date" in norm_val:
-            try:
-                match_mongo = re.search(r'"\$date"\s*:\s*"([^"]+)"', norm_val)
-                if match_mongo:
-                    norm_val = match_mongo.group(1)
-            except Exception:
-                pass
+        if "{" in s and "$date" in s:
+            mm = re.search(r'"\$date"\s*:\s*"([^"]+)"', s)
+            if mm:
+                s = mm.group(1)
 
-        now_dt = now if now else datetime.datetime.now(datetime.timezone.utc)
+        now_dt = now or datetime.datetime.now(datetime.timezone.utc)
         if isinstance(now_dt, str):
             now_dt = dateutil.parser.parse(now_dt)
         if now_dt.tzinfo is None:
             now_dt = now_dt.replace(tzinfo=datetime.timezone.utc)
-            
+
         try:
-            dt_leap = dateutil.parser.parse(norm_val, default=datetime.datetime(2004, 1, 1))
+            dt_leap = dateutil.parser.parse(s, default=datetime.datetime(2004, 1, 1))
         except Exception:
             return None
-            
         try:
-            dt_non_leap = dateutil.parser.parse(norm_val, default=datetime.datetime(2001, 1, 1))
-            is_missing_year = (dt_leap.year != dt_non_leap.year)
+            dt_non = dateutil.parser.parse(s, default=datetime.datetime(2001, 1, 1))
+            missing_year = dt_leap.year != dt_non.year
         except Exception:
-            is_missing_year = True
-            
-        if is_missing_year:
-            target_year = now_dt.year
+            missing_year = True
+
+        if missing_year:
             try:
-                final_dt = dt_leap.replace(year=target_year)
-            except ValueError: 
+                dt = dt_leap.replace(year=now_dt.year)
+            except ValueError:
                 return None
-                
-            if final_dt.tzinfo is None:
-                final_dt = final_dt.replace(tzinfo=datetime.timezone.utc)
-                
-            if (final_dt - now_dt).total_seconds() > 86400:
-                target_year -= 1
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+            if (dt - now_dt).total_seconds() > 86400:
                 try:
-                    final_dt = dt_leap.replace(year=target_year)
+                    dt = dt_leap.replace(year=now_dt.year - 1)
                 except ValueError:
                     return None
-                if final_dt.tzinfo is None:
-                    final_dt = final_dt.replace(tzinfo=datetime.timezone.utc)
-                    
-            dt = final_dt
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=datetime.timezone.utc)
         else:
             dt = dt_leap
-            
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=datetime.timezone.utc)
-            
-        dt = dt.astimezone(datetime.timezone.utc)
-        iso = dt.isoformat()
-        if iso.endswith("+00:00"):
-            iso = iso.replace("+00:00", "Z")
-        if not iso.endswith("Z"):
-            iso += "Z"
-        return iso
+
+        return _utc_iso(dt)
     except Exception:
         return None

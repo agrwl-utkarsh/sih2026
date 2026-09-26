@@ -1,262 +1,146 @@
+const $ = id => document.getElementById(id);
+const fetchJSON = async url => { try { const r = await fetch(url); return r.ok ? await r.json() : null; } catch { return null; } };
+
 document.addEventListener('DOMContentLoaded', () => {
-    const sampleSelect = document.getElementById('sample-select');
-    const logInput = document.getElementById('log-input');
-    const processBtn = document.getElementById('process-btn');
-    const resultsContainer = document.getElementById('results-container');
-    const cacheOutput = document.getElementById('cache-output');
-    const refreshCacheBtn = document.getElementById('refresh-cache-btn');
-    const template = document.getElementById('result-card-template');
+  const els = {
+    sample: $('sample-select'), input: $('log-input'), run: $('process-btn'), clear: $('clear-btn'),
+    results: $('results-container'), hint: $('results-hint'), tmpl: $('result-card-template'),
+    total: $('stat-total'), cached: $('stat-cached'), disc: $('stat-discovery'),
+    fams: $('stat-families'), lat: $('stat-latency'), saved: $('stat-saved'), health: $('health-badge')
+  };
+  let tot = { total: 0, cached: 0, disc: 0, latSum: 0 };
 
-    sampleSelect.addEventListener('change', (e) => {
-        if (e.target.value) {
-            logInput.value = e.target.value;
-            resultsContainer.textContent = '';
-        }
-    });
+  const updStats = () => {
+    els.total.textContent = tot.total;
+    els.cached.textContent = tot.cached;
+    els.disc.textContent = tot.disc;
+    els.lat.textContent = tot.total ? `${(tot.latSum / tot.total).toFixed(1)} ms` : '—';
+    els.saved.textContent = tot.total ? `${Math.round(tot.cached / tot.total * 100)}%` : '0%';
+    fetchHealth();
+  };
 
-    const refreshCache = async () => {
-        try {
-            const res = await fetch('/api/logs/cache');
-            if (!res.ok) {
-                const data = await res.json();
-                cacheOutput.textContent = `Error fetching cache: ${JSON.stringify(data.detail || data)}`;
-                return;
-            }
-            const data = await res.json();
-            if (data.cache && data.cache.length === 0) {
-                cacheOutput.textContent = 'Cache is currently empty.';
-            } else {
-                cacheOutput.textContent = JSON.stringify(data.cache, null, 2);
-            }
-        } catch(e) {
-            console.error('Failed to fetch cache', e);
-            cacheOutput.textContent = 'Network error fetching cache.';
-        }
-    };
-    
-    refreshCacheBtn.addEventListener('click', refreshCache);
+  const fetchHealth = async () => {
+    const h = await fetchJSON('/api/health');
+    if (!h) { els.health.textContent = 'System offline'; els.health.className = 'health-badge warn'; return; }
+    const n = h.family_cache?.families_learned ?? 0;
+    els.fams.textContent = n;
+    const ok = h.llm_configured;
+    els.health.textContent = ok ? `LLM: ${h.provider} • ${h.model} • ${n} families` : `Heuristic • ${n} families`;
+    els.health.className = `health-badge ${ok ? 'ok' : 'warn'}`;
+    $('health-output').textContent = JSON.stringify(h, null, 2);
+  };
 
-    // ---------- Drain3 template tier + novelty quarantine panels ----------
-    const templatesBody = document.getElementById('templates-body');
-    const quarantineOutput = document.getElementById('quarantine-output');
-    const tierStats = document.getElementById('tier-stats');
-    const gateStats = document.getElementById('gate-stats');
+  const refreshCache = async () => {
+    const d = await fetchJSON('/api/logs/cache');
+    if (!d) return;
+    $('family-output').textContent = JSON.stringify(d.family_cache || {}, null, 2);
+    $('cache-output').textContent = JSON.stringify(d.cache || [], null, 2);
+  };
 
-    const refreshTemplates = async () => {
-        try {
-            const res = await fetch('/api/logs/templates');
-            if (!res.ok) return;
-            const t = await res.json();
-            templatesBody.textContent = '';
-            tierStats.textContent = `${t.clusters} clusters · ${t.rules_learned} rules · backend: ${t.rule_backend}${t.enforce_mode ? ' · ENFORCE' : ''}`;
-            if (!t.templates.length) {
-                const tr = document.createElement('tr');
-                const td = document.createElement('td'); td.setAttribute('colspan','4');
-                td.style.textAlign = 'center'; td.style.color = '#94a3b8';
-                td.textContent = 'No templates mined yet — run some logs.';
-                tr.appendChild(td); templatesBody.appendChild(tr);
-                return;
-            }
-            t.templates.forEach(tpl => {
-                const tr = document.createElement('tr');
-                const tdT = document.createElement('td');
-                tdT.textContent = tpl.template;
-                tdT.style.fontFamily = 'var(--font-code)'; tdT.style.fontSize = '0.75rem';
-                tdT.title = `cluster #${tpl.cluster_id}`;
-                const tdN = document.createElement('td'); tdN.textContent = tpl.size;
-                const tdR = document.createElement('td');
-                tdR.textContent = tpl.has_rule ? 'rule ✓' : '—';
-                tdR.style.color = tpl.has_rule ? 'var(--accent-green)' : '#94a3b8';
-                const tdM = document.createElement('td');
-                tdM.textContent = t.enforce_mode ? 'enforce' : 'shadow';
-                tdM.style.color = '#94a3b8';
-                tr.appendChild(tdT); tr.appendChild(tdN); tr.appendChild(tdR); tr.appendChild(tdM);
-                templatesBody.appendChild(tr);
-            });
-        } catch(e) { console.error('Failed to fetch templates', e); }
-    };
+  const refreshTemplates = async () => {
+    const t = await fetchJSON('/api/logs/templates');
+    if (!t) return;
+    $('tier-stats').textContent = `${t.clusters} clusters • ${t.rules_learned} rules • ${t.rule_backend}${t.enforce_mode ? ' • ENFORCE' : ''}`;
+    const body = $('templates-body'); body.innerHTML = '';
+    if (!t.templates?.length) {
+      body.innerHTML = '<tr><td colspan="3" class="muted">No templates mined yet</td></tr>'; return;
+    }
+    body.append(...t.templates.map(tpl => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td style="font-family:var(--mono)" title="cluster #${tpl.cluster_id}">${tpl.template}</td><td>${tpl.size}</td><td style="color:${tpl.has_rule ? 'var(--green)' : 'var(--muted)'}">${tpl.has_rule ? 'rule ✓' : '—'}</td>`;
+      return tr;
+    }));
+  };
 
-    const refreshQuarantine = async () => {
-        try {
-            const res = await fetch('/api/logs/quarantine');
-            if (!res.ok) return;
-            const q = await res.json();
-            quarantineOutput.textContent = '';
-            if (!q.items || !q.items.length) {
-                quarantineOutput.textContent = 'No novel templates seen.';
-                return;
-            }
-            const list = document.createElement('div');
-            q.items.slice(0, 10).forEach(item => {
-                const row = document.createElement('div');
-                row.style.marginBottom = '0.9rem';
-                const head = document.createElement('div');
-                head.style.fontFamily = 'var(--font-code)'; head.style.fontSize = '0.75rem';
-                const g = item.gate || {};
-                const burden = g.novel ? 'NOVEL' : 'watched';
-                head.textContent = `[${burden}] ×${item.count}  d=${g.distance ?? '?'}  guess=${g.family_guess ?? '?'} — ${item.template}`;
-                head.style.color = g.novel ? 'var(--accent-yellow)' : '#94a3b8';
-                const samp = document.createElement('pre');
-                samp.style.margin = '0.3rem 0 0 0'; samp.style.fontSize = '0.7rem';
-                samp.style.whiteSpace = 'pre-wrap'; samp.style.color = '#94a3b8';
-                samp.textContent = (item.samples || [])[0] || '';
-                row.appendChild(head); row.appendChild(samp);
-                list.appendChild(row);
-            });
-            quarantineOutput.appendChild(list);
-        } catch(e) { console.error('Failed to fetch quarantine', e); }
-    };
+  const refreshQuarantine = async () => {
+    const q = await fetchJSON('/api/logs/quarantine');
+    if (!q) return;
+    const out = $('quarantine-output'); out.innerHTML = '';
+    if (!q.items?.length) { out.textContent = 'No novel templates seen.'; return; }
+    out.append(...q.items.slice(0, 20).map(item => {
+      const g = item.gate || {};
+      const div = document.createElement('div');
+      div.style.cssText = 'margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)';
+      div.innerHTML = `<div style="font-family:var(--mono);font-size:11px;color:${g.novel ? 'var(--yellow)' : 'var(--muted)'}">[${g.novel ? 'NOVEL' : 'watched'}] ×${item.count} d=${g.distance ?? '?'} guess=${g.family_guess ?? '?'} — ${item.template}</div><pre style="margin:6px 0 0;font-size:10px">${(item.samples || [])[0] || ''}</pre>`;
+      return div;
+    }));
+    $('gate-stats').textContent = `${q.novel_templates} novel`;
+  };
 
-    const loadGateInfo = async () => {
-        try {
-            const res = await fetch('/api/health');
-            if (!res.ok) return;
-            const h = await res.json();
-            const g = h.format_gate || {};
-            gateStats.textContent = g.loaded
-                ? `gate ready · thr ${g.threshold} · n=${g.n_train} lines`
-                : `gate unavailable (${g.reason})`;
-        } catch(e) { /* server without gate info */ }
-    };
+  els.sample.addEventListener('change', e => { if (e.target.value) { els.input.value = e.target.value; els.input.focus(); } });
+  els.clear.addEventListener('click', () => {
+    els.input.value = '';
+    els.results.innerHTML = '<div class="empty-state"><div class="empty-icon">◫</div><p>Results will appear here</p><small>Try CSV: first=Discovery, second=Cached</small></div>';
+    els.hint.textContent = 'No logs processed yet';
+    tot = { total: 0, cached: 0, disc: 0, latSum: 0 }; updStats();
+  });
 
-    document.getElementById('refresh-templates-btn').addEventListener('click', refreshTemplates);
-    document.getElementById('refresh-quarantine-btn').addEventListener('click', refreshQuarantine);
-    refreshTemplates(); refreshQuarantine(); loadGateInfo();
+  document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn,.tab-pane').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); $(`tab-${b.dataset.tab}`).classList.add('active');
+  }));
 
-    processBtn.addEventListener('click', async () => {
-        const rawText = logInput.value.trim();
-        if (!rawText) {
-            alert('Please enter a log to process.');
-            return;
+  ['family','cache'].forEach(id => $(`refresh-${id}-btn`)?.addEventListener('click', refreshCache));
+  $('refresh-templates-btn').addEventListener('click', refreshTemplates);
+  $('refresh-quarantine-btn').addEventListener('click', refreshQuarantine);
+  $('refresh-health-btn').addEventListener('click', fetchHealth);
+
+  fetchHealth(); refreshCache(); refreshTemplates(); refreshQuarantine();
+
+  els.run.addEventListener('click', async () => {
+    const raw = els.input.value.trim();
+    if (!raw) return alert('Paste some logs first');
+    els.run.disabled = true; els.run.innerHTML = '<span class="btn-icon">⏳</span> Running...';
+    try {
+      const logs = raw.split('\n').filter(l => l.trim());
+      const res = await fetch('/api/logs/ingest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logs }) });
+      if (!res.ok) throw new Error(JSON.stringify((await res.json()).detail || {}));
+      const data = await res.json();
+      if (els.results.querySelector('.empty-state')) els.results.innerHTML = '';
+      const frag = document.createDocumentFragment();
+
+      data.processed_logs.forEach(r => {
+        const c = els.tmpl.content.cloneNode(true);
+        const badge = c.querySelector('.mode-badge');
+        c.querySelector('.val-format').textContent = r.format || 'Unknown';
+        c.querySelector('.val-family').textContent = r.family || 'generic';
+        c.querySelector('.val-latency').textContent = `${r.latency_ms} ms`;
+        c.querySelector('.val-by').textContent = r.inferred_by || '—';
+        badge.textContent = r.mode === 'Cached' ? 'Cached' : r.mode === 'Discovery' ? `Discovery (${r.inferred_by === 'llm' ? 'LLM' : 'Heuristic'})` : r.mode;
+        badge.classList.add({ Cached: 'cached', Discovery: 'discovery', Quarantined: 'quarantined' }[r.mode] || 'error');
+
+        const note = c.querySelector('.llm-note');
+        if (r.llm_error) { note.textContent = r.llm_error; note.style.display = 'block'; }
+        if (r.gate) {
+          const g = r.gate, d = document.createElement('div');
+          d.style.cssText = 'font-size:11px;font-family:var(--mono);margin-top:6px;color:' + (g.novel ? 'var(--yellow)' : 'var(--cyan)');
+          d.textContent = `Gate: ${g.novel ? 'NOVEL' : 'known'} d=${g.distance} guess=${g.family_guess}`;
+          note.parentNode.insertBefore(d, note.nextSibling);
         }
 
-        processBtn.textContent = 'Running Pipeline...';
-        processBtn.disabled = true;
-        
-        resultsContainer.textContent = ''; 
-        
-        try {
-            const logs = rawText.split('\n');
-
-            const response = await fetch('/api/logs/ingest', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ logs })
-            });
-
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(JSON.stringify(data.detail || data));
-            }
-            const data = await response.json();
-            
-            const fragment = document.createDocumentFragment();
-            data.processed_logs.forEach(result => {
-                const clone = template.content.cloneNode(true);
-                
-                const valMode = clone.querySelector('.val-mode');
-                const valFormat = clone.querySelector('.val-format');
-                const valLatency = clone.querySelector('.val-latency');
-                const modeCard = clone.querySelector('.mode-card');
-                const fieldsBody = clone.querySelector('.fields-body');
-                const logOutput = clone.querySelector('.log-output');
-
-                valFormat.textContent = result.format;
-                valLatency.textContent = `${result.latency_ms} ms`;
-                
-                if (result.mode === 'Cached') {
-                    modeCard.classList.add('mode-cached');
-                    valMode.textContent = 'Cached (Fast Path)';
-                } else if (result.mode === 'Template-Rule') {
-                    modeCard.classList.add('mode-template');
-                    valMode.textContent = 'Template-Rule (Drain3)';
-                    if (result.gate && result.gate.novel === false) {
-                        const note = clone.querySelector('.llm-error-note');
-                        note.textContent = `ML gate: known family (${result.gate.family_guess}), d=${result.gate.distance} — zero LLM calls`;
-                        note.style.color = 'var(--accent-cyan)';
-                        note.style.display = 'block';
-                    }
-                } else if (result.mode === 'Quarantined') {
-                    modeCard.classList.add('mode-quarantine');
-                    valMode.textContent = 'Quarantined (novel format)';
-                    const note = clone.querySelector('.llm-error-note');
-                    const g = result.gate || {};
-                    const q = result.quarantine || {};
-                    note.textContent = `ML gate: NOVEL (d=${g.distance} > thr) · seen ${q.count}/${q.graduate_after} before one LLM call · zero key spend so far`;
-                    note.style.color = 'var(--accent-yellow)';
-                    note.style.display = 'block';
-                } else if (result.mode === 'Discovery') {
-                    modeCard.classList.add('mode-discovery');
-                    const by = result.inferred_by === 'llm' ? 'LLM' : 'Heuristic';
-                    valMode.textContent = `Discovery (${by})`;
-                    if (result.gate && result.gate.novel) {
-                        const note2 = clone.querySelector('.llm-error-note');
-                        note2.textContent = `ML gate: NOVEL family flagged (d=${result.gate.distance}) — visible in quarantine panel`;
-                        note2.style.color = 'var(--accent-yellow)';
-                        note2.style.display = 'block';
-                    } else if (result.llm_error) {
-                        const note = clone.querySelector('.llm-error-note');
-                        note.textContent = `LLM fallback: ${result.llm_error}`;
-                        note.title = result.llm_error;
-                        note.style.display = 'block';
-                    }
-                } else if (result.mode === 'Error') {
-                    modeCard.classList.add('mode-error');
-                    valMode.textContent = 'Error';
-                }
-
-                // Populate Fields Table without innerHTML
-                fieldsBody.textContent = '';
-                
-                if (result.mode === 'Error' && result.error) {
-                    const tr = document.createElement('tr');
-                    const tdKey = document.createElement('td');
-                    tdKey.textContent = 'error';
-                    const tdVal = document.createElement('td');
-                    tdVal.textContent = result.error;
-                    tr.appendChild(tdKey);
-                    tr.appendChild(tdVal);
-                    fieldsBody.appendChild(tr);
-                } else {
-                    const allFields = { ...result.extracted_fields, ...result.normalized.extra };
-                    for (const [key, value] of Object.entries(allFields)) {
-                        if (key === 'raw_message' || value == null || value === '') continue;
-                        const tr = document.createElement('tr');
-                        const tdKey = document.createElement('td');
-                        tdKey.textContent = key;
-                        const tdVal = document.createElement('td');
-                        tdVal.textContent = typeof value === 'object' ? JSON.stringify(value) : value;
-                        tr.appendChild(tdKey);
-                        tr.appendChild(tdVal);
-                        fieldsBody.appendChild(tr);
-                    }
-                }
-                
-                if (fieldsBody.children.length === 0) {
-                    const tr = document.createElement('tr');
-                    const td = document.createElement('td');
-                    td.setAttribute('colspan', '2');
-                    td.style.textAlign = 'center';
-                    td.style.color = '#94a3b8';
-                    td.textContent = 'No fields extracted (Unstructured fallback)';
-                    tr.appendChild(td);
-                    fieldsBody.appendChild(tr);
-                }
-
-                logOutput.textContent = JSON.stringify(result.normalized, null, 2);
-                fragment.appendChild(clone);
-            });
-            resultsContainer.appendChild(fragment);
-            
-            await refreshCache();
-            await refreshTemplates();
-            await refreshQuarantine();
-
-        } catch (error) {
-            alert(`Error: ${error.message}`);
-        } finally {
-            processBtn.textContent = 'Run Pipeline';
-            processBtn.disabled = false;
+        const body = c.querySelector('.fields-body'); body.innerHTML = '';
+        if (r.mode === 'Error' && r.error) {
+          body.innerHTML = `<tr><td>error</td><td>${r.error}</td></tr>`;
+        } else {
+          const all = { ...r.extracted_fields, ...r.normalized.extra };
+          const rows = Object.entries(all).filter(([k, v]) => k !== 'raw_message' && v != null && v !== '').map(([k, v]) => `<tr><td>${k}</td><td>${typeof v === 'object' ? JSON.stringify(v) : v}</td></tr>`).join('');
+          body.innerHTML = rows || '<tr><td colspan="2" class="muted" style="text-align:center">No fields extracted</td></tr>';
         }
-    });
+        c.querySelector('.log-output').textContent = JSON.stringify(r.normalized, null, 2);
+        c.querySelector('.toggle-json').addEventListener('click', e => {
+          const pre = e.target.closest('.normalized-section').querySelector('.log-output');
+          pre.style.display = pre.style.display === 'none' ? 'block' : 'none';
+        });
+        frag.appendChild(c);
+        tot.total++; tot.latSum += r.latency_ms || 0;
+        if (r.mode === 'Cached') tot.cached++;
+        if (r.mode === 'Discovery') tot.disc++;
+      });
+
+      els.results.prepend(frag);
+      els.hint.textContent = `${data.processed_logs.length} log(s) • ${tot.cached} cached • ${tot.disc} discovery`;
+      updStats(); refreshCache(); refreshTemplates(); refreshQuarantine();
+    } catch (e) { alert('Error: ' + e.message); }
+    finally { els.run.disabled = false; els.run.innerHTML = '<span class="btn-icon">▶</span> Analyze Logs'; }
+  });
 });
