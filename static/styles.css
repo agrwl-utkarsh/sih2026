@@ -258,6 +258,29 @@ h1, h2, h3, h4, p { margin: 0; font-weight: 500; }
 }
 .btn-nav:focus-visible { outline: 3px solid #d2e4f8; outline-offset: 3px; }
 
+/* ── cache reset: same size, weight and contrast as the nav buttons so it
+      is impossible to miss, but tinted red — it destroys learned state and
+      should not be mistaken for the neighbouring navigation link ────── */
+.btn-nav-reset {
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    background: rgba(212, 104, 111, 0.16);
+    border: 1px solid var(--err);
+    color: #f2bcc0;
+    box-shadow: 0 0 0 2px rgba(212, 104, 111, 0.15), 0 3px 14px rgba(0, 0, 0, 0.4);
+}
+.btn-nav-reset .btn-key { font-size: 13px; opacity: 1; color: #f2bcc0; }
+.btn-nav-reset:hover {
+    background: var(--err);
+    border-color: #e79499;
+    color: #1a0d0f;
+    box-shadow: 0 0 0 3px rgba(212, 104, 111, 0.28), 0 4px 18px rgba(0, 0, 0, 0.48);
+}
+.btn-nav-reset:hover .btn-key { color: #1a0d0f; }
+.btn-nav-reset:focus-visible { outline: 3px solid #e79499; outline-offset: 3px; }
+.btn-nav-reset:disabled { opacity: 0.45; cursor: not-allowed; }
+
 .btn-key {
     font-size: 9px;
     letter-spacing: 0.06em;
@@ -595,13 +618,16 @@ pre.json.is-hidden { display: none; }
 
 /* ── inspector: fingerprint cache only ──────────────────── */
 .inspector-count {
-    font-size: 9px;
+    font-size: 13px;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
-    padding: 0 5px;
+    min-width: 32px;
+    text-align: center;
+    padding: 2px 9px;
     border-radius: 2px;
     background: var(--surface-3);
     color: var(--accent);
-    border: 1px solid rgba(127, 167, 212, 0.35);
+    border: 1px solid rgba(127, 167, 212, 0.45);
 }
 .inspector-body { padding: 11px; }
 .inspector-body pre.json { max-height: 280px; }
