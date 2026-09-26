@@ -174,14 +174,11 @@
       row.className = `record m-${cls}`;
 
       const notes = [];
-      if (r.llm_error) notes.push(`<div class="rec-note">${esc(r.llm_error)}</div>`);
-      if (r.gate) {
-        const g = r.gate;
-        notes.push(`<div class="rec-note is-gate">gate: ${g.novel ? 'NOVEL' : 'known'} · d=${esc(g.distance ?? '?')} · guess=${esc(g.family_guess ?? '?')}</div>`);
-      }
       if (r.quarantine) {
         const q = r.quarantine;
-        notes.push(`<div class="rec-note is-gate">quarantine: ${esc(q.count ?? '?')}/${esc(q.graduate_after ?? '?')} seen before graduation</div>`);
+        notes.push(`<div class="rec-note is-gate">held for review — ${esc(q.count ?? '?')} of ${esc(q.graduate_after ?? '?')} sightings seen; one discovery call then covers every line of this pattern</div>`);
+      } else if (r.llm_error) {
+        notes.push(`<div class="rec-note">${esc(r.llm_error)}</div>`);
       }
 
       row.innerHTML = `
@@ -313,19 +310,28 @@
       const q = await fetchJSON('/api/logs/quarantine');
       if (!q) return;
       const items = q.items || [];
-      els.counts.quarantine.textContent = num(q.novel_templates ?? 0);
+      const novelCount = num(q.novel_templates ?? 0);
+      els.counts.quarantine.textContent = novelCount;
       els.gateStats.textContent =
-        `${num(q.novel_templates)} novel · ${q.enforce_mode ? 'enforce' : 'shadow mode'}`;
+        `${novelCount} novel format${Number(q.novel_templates) === 1 ? '' : 's'} · ${q.enforce_mode ? 'enforce' : 'shadow mode'}`;
 
       els.quarantineOut.classList.toggle('dim', items.length === 0);
       els.quarantineOut.innerHTML = items.length
         ? items.slice(0, 20).map((item) => {
             const g = item.gate || {};
+            const seen = Number(item.count) || 0;
+            const sightings = `${num(seen)} sighting${seen === 1 ? '' : 's'}`;
+            const family = g.family_guess
+              ? ` · ${g.novel ? 'closest known family' : 'matched family'}: ${esc(g.family_guess)}`
+              : '';
+            const evidence = g.distance == null
+              ? 'novelty score unavailable'
+              : `novelty distance ${esc(g.distance)}${g.threshold == null ? '' : ` · threshold ${esc(g.threshold)}`}`;
             return `
               <div class="q-item">
                 <div class="q-head">
-                  <span class="q-flag ${g.novel ? 'novel' : 'watched'}">[${g.novel ? 'NOVEL' : 'watched'}]</span>
-                  <span class="q-meta">×${esc(item.count ?? '?')} · d=${esc(g.distance ?? '?')} · guess=${esc(g.family_guess ?? '?')}</span>
+                  <span class="q-flag ${g.novel ? 'novel' : 'watched'}" title="${evidence}">${g.novel ? 'novel' : 'known'}</span>
+                  <span class="q-meta">${sightings}${family}</span>
                   — <span class="q-tpl">${esc(item.template ?? '')}</span>
                 </div>
                 <pre class="q-sample">${esc((item.samples || [])[0] || '—')}</pre>
