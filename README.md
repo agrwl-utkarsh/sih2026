@@ -45,13 +45,30 @@ All logs are mapped to the following normalized JSON schema:
 
 ## API Endpoints
 
-- **`GET /`**: Serves the frontend UI (ingest console + Cache Inspector + Template Tier + Quarantine panels).
+- **`GET /`**: Serves the ingest console (editor + parsed-output table + Cache Inspector + Template Tier + Quarantine panels).
+- **`GET /records`**: Serves the **record explorer** — the per-record normalized JSON view. The console's ingests are captured in the browser (`localStorage`, newest 3 runs) and read back by this page, so JSON detail no longer has to be rendered inside the console's results stream. Query params: `?run=<id>` picks a captured run, `?i=<n>` deep-links to one record (the table rows link straight to it). The page paginates 200 records at a time, filters by mode/search across the whole run, and offers copy-JSON / download-JSONL.
 - **`POST /api/logs/ingest`**: Main ingestion endpoint. Accepts `{"logs": ["log1", "log2", ...]}`. Returns parsed and normalized logs. Each result includes `mode` (`Cached`/`Template-Rule`/`Quarantined`/`Discovery`/`Error`), `inferred_by` (`llm`/`heuristic`), `llm_error`, the Drain3 `template`/`cluster_id`, and the gate verdict (`gate.novel`, `gate.distance`, `gate.family_guess`).
 - **`GET /api/logs/cache`**: Exposes the active Tier-1 fingerprint cache rules for inspection.
 - **`GET /api/logs/templates`**: Drain3-mined templates across all traffic: cluster sizes, which clusters have rules, rule backend, and tier stats.
 - **`GET /api/logs/quarantine`**: Novel templates recorded by the tier, with gate distances, family guesses, and raw samples.
 - **`GET /api/health`**: Pipeline health: LLM config + template-tier stats + format-gate status + ingest-auth flag. Pass `?check_live=true` for an active connectivity test.
 - **`GET /api/health/llm`**: Dedicated LLM diagnostic endpoint testing provider connection and latency.
+
+## Frontend (two pages)
+
+The UI is deliberately split, because rendering a full JSON detail card per record does not
+survive a real batch: a 1 000-line ingest built **66 014** DOM nodes, almost all of them in
+collapsed detail cards, and the browser stalled before you could open anything.
+
+| Page | Owns | Renders |
+|---|---|---|
+| `/` (console) | ingest, telemetry, cache/template/quarantine inspector | one row per record in the results table; detail cards only for batches ≤ 25 records |
+| `/records` (explorer) | the normalized JSON | one page of 200 list rows + a single detail panel for the selected record |
+
+- **Hand-off**: every ingest run is captured in the browser (`localStorage`, newest 3 runs, ~3.5 MB budget) by `static/ui.js`. The explorer reads that store back by id — no server round-trip, nothing leaves the browser.
+- **Entry points**: the run's *open record explorer* button, the *explorer ↗* link in the results header, the titlebar link, or a table row (each row deep-links to its own record with `?i=`). After a flush, the empty state offers the last captured run.
+- **Explorer features**: search across the whole run (not just the visible page), mode chips with counts, ↑/↓/PageUp/PageDown stepping, `/` to focus search, copy-normalized-JSON, download the run as JSONL.
+- Measured after the split — same 1 000-line batch: console **11 022** nodes (was 66 014), explorer **1 133** nodes; older console batches (beyond the newest 3) collapse to a one-line link instead of keeping a full table in the DOM.
 
 ## Technology Stack (SIH mandate → where it lives)
 
@@ -128,6 +145,7 @@ Measured offline by `scripts/evaluate_accuracy.py` (pandas) → [`docs/accuracy_
 Please note the following system constraints:
 - **Tier-1 cache is in-memory**: the fingerprint cache is per-instance and is lost on cold start. Template *rules* survive if Upstash/Vercel KV is configured; without it, the Drain3 tree re-mines traffic at ~0.016 ms/line, so only template-to-rule learning (LLM labels) is affected — behavior, not correctness.
 - **Timezones**: Naive timestamps (timestamps without explicit timezone offsets) are assumed to be UTC.
+- **Record explorer storage**: captured runs live in the browser (newest 3, `localStorage`). Clearing site data or switching browser/profile loses them; the console's own output table always reflects the current session.
 - **Gate coverage**: the novelty gate knows the 13 families it was trained on (12 synthetic + `hpc_supercomputer` from real Loghub data); exotic but *legitimate* families may be flagged novel (review via `/api/logs/quarantine`; retrain with `scripts/train_format_gate.py`). The artifact carries `GATE_FEATURE_VERSION` — feature changes require retraining (the loader refuses stale artifacts with an actionable message).
 
 ## Running and Testing
@@ -145,7 +163,7 @@ This script will start the FastAPI backend and send a representative sample of S
 
 ### Run tests
 ```bash
-pytest tests/ -v        # 58 tests
+pytest tests/ -v        # 62 tests
 ```
 
 ### Retrain the format gate (scikit-learn artifact)

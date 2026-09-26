@@ -127,7 +127,7 @@ class DiscoveryEngine:
 
         if force_heuristic:
             r=self._heuristic_fallback(features, log_entry)
-            r["llm_error"]="Deferred: template quarantined by novelty gate (see /api/logs/quarantine); one discovery call per cluster runs on graduation"
+            r["llm_error"]="No LLM call yet: this pattern is new to the model and is held for review until it repeats (see the quarantine panel)"
             return r
 
         errors=[]

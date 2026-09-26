@@ -19,6 +19,9 @@
                 <span class="brand-name">Universal Log Pre-processing Framework</span>
             </div>
             <div class="titlebar-right">
+                <a class="btn btn-ghost" href="/records" title="Per-record normalized JSON — searchable, one page at a time">
+                    <span class="btn-key">▤</span>record explorer
+                </a>
                 <button id="clear-cache-btn" class="btn btn-ghost" title="Reset learned families, fingerprints, templates and quarantine">
                     <span class="btn-key">reset</span>cache
                 </button>
@@ -103,6 +106,7 @@
                     <h2 class="pane-title">parsed output</h2>
                     <div class="pane-tools">
                         <span class="pane-hint" id="results-hint">awaiting input</span>
+                        <a class="btn btn-mini" href="/records" title="Open the record explorer">explorer ↗</a>
                         <button id="clear-stream-btn" class="btn btn-mini">flush</button>
                     </div>
                 </div>
@@ -166,6 +170,7 @@
         </footer>
     </div>
 
+    <script src="/static/ui.js"></script>
     <script src="/static/app.js"></script>
 </body>
 </html>

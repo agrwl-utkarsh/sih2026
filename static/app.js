@@ -18,45 +18,10 @@
     }
   };
 
-  /* ── helpers ─────────────────────────────────────────── */
-
-  /** For attribute contexts — escapes quotes as well. */
-  const esc = (v) => String(v ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
-  /** For element content. Quotes stay literal so the JSON tokeniser can see them. */
-  const escText = (v) => String(v ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-  const clip = (s, n = 200) => {
-    const str = String(s ?? '');
-    return str.length > n ? `${str.slice(0, n)}…` : str;
-  };
-
-  const num = (n) => Number(n || 0).toLocaleString('en-US');
-
-  /** Escapes markup-sensitive chars, then colourises JSON tokens. */
-  const highlightJSON = (value) => {
-    const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-    return escText(text).replace(
-      /("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false)\b|\bnull\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
-      (match) => {
-        let cls = 'j-num';
-        if (match.startsWith('"')) cls = /:\s*$/.test(match) ? 'j-key' : 'j-str';
-        else if (match === 'true' || match === 'false') cls = 'j-bool';
-        else if (match === 'null') cls = 'j-null';
-        return `<span class="${cls}">${match}</span>`;
-      }
-    );
-  };
-
-  const MODE_CLASS = {
-    Cached: 'cached',
-    Discovery: 'discovery',
-    Quarantined: 'quarantined',
-    Error: 'error'
-  };
+  /* ── shared toolkit ──────────────────────────────────── */
+  /* esc / escText / clip / num / highlightJSON / MODE_CLASS / Store live in
+     ui.js so the console and the record explorer cannot drift apart. */
+  const { esc, clip, num, highlightJSON, modeClass, recordNotes, Store } = window.ULP;
 
   document.addEventListener('DOMContentLoaded', () => {
 
@@ -101,6 +66,12 @@
 
     const totals = { total: 0, cached: 0, disc: 0, latSum: 0 };
     let runCount = 0;
+
+    /** Above this many records per batch the console shows the table only. */
+    const CARD_LIMIT = 25;
+
+    /** Full tables kept in the console; older batches collapse to one line. */
+    const RUN_GROUPS = 3;
 
     /* ── telemetry ─────────────────────────────────────── */
     const paintTelemetry = () => {
@@ -151,18 +122,24 @@
     els.input.addEventListener('keyup', syncGutter);
 
     /* ── stream ────────────────────────────────────────── */
+    /** Runs kept in the browser, so the explorer can be opened again later. */
+    const explorerHref = (run, index = null) =>
+      `/records?run=${encodeURIComponent(run.id)}${index == null ? '' : `&i=${index + 1}`}`;
+
     const renderEmpty = () => {
+      const last = Store.latestRun();
       els.stream.innerHTML = `
         <div class="stream-empty">
           <span class="se-mark">▤</span>
           <p>no records yet</p>
           <small>run a fixture — first sighting is <b>discovery</b>, repeats are <b>cached</b></small>
+          ${last ? `<p class="se-last"><a class="btn btn-mini" href="${esc(explorerHref(last))}">open last run · ${num(last.counts?.total ?? last.records.length)} records →</a></p>` : ''}
         </div>`;
     };
 
     /** Build one parsed-output record row. */
     const renderRecord = (r) => {
-      const cls = MODE_CLASS[r.mode] || 'other';
+      const cls = modeClass(r.mode);
       const badge = r.mode === 'Discovery'
         ? `discovery·${r.inferred_by === 'llm' ? 'llm' : 'heur'}`
         : esc(String(r.mode || 'unknown')).toLowerCase();
@@ -173,16 +150,8 @@
       const row = document.createElement('div');
       row.className = `record m-${cls}`;
 
-      const notes = [];
-      if (r.llm_error) notes.push(`<div class="rec-note">${esc(r.llm_error)}</div>`);
-      if (r.gate) {
-        const g = r.gate;
-        notes.push(`<div class="rec-note is-gate">gate: ${g.novel ? 'NOVEL' : 'known'} · d=${esc(g.distance ?? '?')} · guess=${esc(g.family_guess ?? '?')}</div>`);
-      }
-      if (r.quarantine) {
-        const q = r.quarantine;
-        notes.push(`<div class="rec-note is-gate">quarantine: ${esc(q.count ?? '?')}/${esc(q.graduate_after ?? '?')} seen before graduation</div>`);
-      }
+      const notes = recordNotes(r).map((n) =>
+        `<div class="rec-note${n.kind === 'hold' ? ' is-gate' : ''}">${esc(n.text)}</div>`);
 
       row.innerHTML = `
         <div class="rec-head" role="button" tabindex="0" aria-expanded="false">
@@ -242,29 +211,102 @@
       return row;
     };
 
-    /** Keep parsed values visible without requiring a record card to be expanded. */
-    const renderSummary = (records) => {
+    /**
+     * One row per record, which stays readable at any batch size. Each row
+     * links into the explorer for that record's full normalized JSON — the
+     * console deliberately no longer builds a detail card per line (at 1,000
+     * lines those cards were ~56k DOM nodes on their own).
+     */
+    const renderSummary = (records, run) => {
       const wrap = document.createElement('div');
       wrap.className = 'table-wrap output-table-wrap';
       wrap.innerHTML = `
         <table class="table output-table" aria-label="Parsed output table">
-          <thead><tr><th class="num">#</th><th>mode</th><th>format</th><th>timestamp</th><th>severity</th><th>source</th><th>message</th></tr></thead>
+          <thead><tr><th class="num">#</th><th>mode</th><th>format</th><th>timestamp</th><th>severity</th><th>source</th><th>message</th><th class="num">lat</th></tr></thead>
           <tbody>${records.map((r, i) => {
             const norm = r.normalized || {};
             const mode = String(r.mode || 'unknown');
-            const cls = MODE_CLASS[mode] || 'other';
-            return `<tr>
-              <td class="num">${i + 1}</td>
+            const cls = modeClass(mode);
+            const href = run ? explorerHref(run, i) : null;
+            // One anchor per row (the index cell) keeps keyboard access without
+            // paying for a link element in every one of the eight cells.
+            const idx = href
+              ? `<a class="row-link" href="${esc(href)}" title="Open this record's normalized JSON in the explorer">${i + 1}</a>`
+              : String(i + 1);
+            return `<tr data-i="${i}"${href ? ` title="Open record #${i + 1} in the explorer"` : ''}>
+              <td class="num">${idx}</td>
               <td><span class="mode-tag ${cls}">${esc(mode)}</span></td>
               <td>${esc(r.format || '—')}</td>
               <td>${esc(norm.timestamp || '—')}</td>
               <td>${esc(norm.severity || '—')}</td>
               <td>${esc(norm.source || '—')}</td>
               <td class="output-message" title="${esc(clip(norm.message || norm.raw || r.error || '', 300))}">${esc(clip(norm.message || norm.raw || r.error || '—', 200))}</td>
+              <td class="num">${esc(r.latency_ms ?? '—')}</td>
             </tr>`;
           }).join('')}</tbody>
         </table>`;
+
+      if (run) {
+        // Whole-row click opens that record; the index anchor keeps keyboard
+        // access, and a live text selection (someone copying table cells) wins
+        // over navigation.
+        wrap.addEventListener('click', (e) => {
+          const row = e.target.closest('tbody tr[data-i]');
+          if (!row || e.target.closest('a')) return;
+          if (String(window.getSelection?.() ?? '').trim()) return;
+          window.location.assign(explorerHref(run, Number(row.dataset.i)));
+        });
+      }
       return wrap;
+    };
+
+    /** Call-to-action strip: the console shows the table, the explorer shows JSON. */
+    const renderRunActions = (records, run) => {
+      const el = document.createElement('div');
+      el.className = 'run-actions';
+      el.innerHTML = `
+        <a class="btn btn-primary" href="${esc(explorerHref(run))}">
+          <span class="btn-key">▤</span>open record explorer
+        </a>
+        <span class="run-actions-hint">
+          normalized JSON for all ${num(records.length)} records — searchable, one page at a time
+        </span>`;
+      return el;
+    };
+
+    /** Small batches keep the per-record cards: they are the nicer read at that size. */
+    const renderCards = (records) => {
+      const frag = document.createDocumentFragment();
+      records.forEach((r, i) => {
+        const row = renderRecord(r);
+        if (records.length <= 3 && i === 0) {
+          row.classList.add('is-open');
+          row.querySelector('.rec-head').setAttribute('aria-expanded', 'true');
+        }
+        frag.appendChild(row);
+      });
+      return frag;
+    };
+
+    /**
+     * Only the newest few batches keep a full table in the DOM; older ones
+     * collapse to a one-line link, so a demo that keeps ingesting does not
+     * pile tables up until the page crawls.
+     */
+    const pruneRunGroups = () => {
+      const groups = Array.from(els.stream.querySelectorAll('.run-group'));
+      groups.slice(0, Math.max(0, groups.length - RUN_GROUPS)).forEach((group) => {
+        if (group.querySelector('.run-collapsed')) return;
+        group.querySelector('.table-wrap')?.remove();
+        group.querySelector('.run-actions')?.remove();
+        group.querySelector('.stream-note')?.remove();
+        group.querySelectorAll('.record').forEach((card) => card.remove());
+        const line = document.createElement('div');
+        line.className = 'run-collapsed';
+        line.innerHTML = `${esc(group.dataset.label || 'earlier run')} · table collapsed to keep this console responsive` +
+          (group.dataset.run ? ` — <a href="/records?run=${encodeURIComponent(group.dataset.run)}">open in explorer</a>` : '');
+        group.appendChild(line);
+      });
     };
 
     const scrollToBottom = () => { els.stream.scrollTop = els.stream.scrollHeight; };
@@ -313,19 +355,28 @@
       const q = await fetchJSON('/api/logs/quarantine');
       if (!q) return;
       const items = q.items || [];
-      els.counts.quarantine.textContent = num(q.novel_templates ?? 0);
+      const novelCount = num(q.novel_templates ?? 0);
+      els.counts.quarantine.textContent = novelCount;
       els.gateStats.textContent =
-        `${num(q.novel_templates)} novel · ${q.enforce_mode ? 'enforce' : 'shadow mode'}`;
+        `${novelCount} novel format${Number(q.novel_templates) === 1 ? '' : 's'} · ${q.enforce_mode ? 'enforce' : 'shadow mode'}`;
 
       els.quarantineOut.classList.toggle('dim', items.length === 0);
       els.quarantineOut.innerHTML = items.length
         ? items.slice(0, 20).map((item) => {
             const g = item.gate || {};
+            const seen = Number(item.count) || 0;
+            const sightings = `${num(seen)} sighting${seen === 1 ? '' : 's'}`;
+            const family = g.family_guess
+              ? ` · ${g.novel ? 'closest known family' : 'matched family'}: ${esc(g.family_guess)}`
+              : '';
+            const evidence = g.distance == null
+              ? 'novelty score unavailable'
+              : `novelty distance ${esc(g.distance)}${g.threshold == null ? '' : ` · threshold ${esc(g.threshold)}`}`;
             return `
               <div class="q-item">
                 <div class="q-head">
-                  <span class="q-flag ${g.novel ? 'novel' : 'watched'}">[${g.novel ? 'NOVEL' : 'watched'}]</span>
-                  <span class="q-meta">×${esc(item.count ?? '?')} · d=${esc(g.distance ?? '?')} · guess=${esc(g.family_guess ?? '?')}</span>
+                  <span class="q-flag ${g.novel ? 'novel' : 'watched'}" title="${evidence}">${g.novel ? 'novel' : 'known'}</span>
+                  <span class="q-meta">${sightings}${family}</span>
                   — <span class="q-tpl">${esc(item.template ?? '')}</span>
                 </div>
                 <pre class="q-sample">${esc((item.samples || [])[0] || '—')}</pre>
@@ -461,29 +512,46 @@
 
         pending.remove();
 
+        // Hand the whole run to the explorer page before rendering anything.
+        const run = Store.saveRun({ records, lines: logs, wallMs: wall });
+        if (!run) els.hint.title = 'browser storage full — the explorer will show no run for this batch';
+
         runCount += 1;
+        const label = `run #${runCount} · ${num(records.length)} record${records.length === 1 ? '' : 's'} · ${wall.toFixed(1)}ms`;
+        const group = document.createElement('section');
+        group.className = 'run-group';
+        if (run) group.dataset.run = run.id;
+        group.dataset.label = label;
+
         const divider = document.createElement('div');
         divider.className = 'run-divider';
-        divider.innerHTML = `<span>run #${runCount} · ${records.length} line${records.length === 1 ? '' : 's'} · ${wall.toFixed(1)}ms</span>`;
-        els.stream.appendChild(divider);
-        els.stream.appendChild(renderSummary(records));
+        divider.innerHTML = `<span>${esc(label)}</span>`;
+        group.appendChild(divider);
 
-        const frag = document.createDocumentFragment();
-        records.forEach((r, i) => {
-          const row = renderRecord(r);
-          if (records.length <= 3 && i === 0) {
-            row.classList.add('is-open');
-            row.querySelector('.rec-head').setAttribute('aria-expanded', 'true');
-          }
-          frag.appendChild(row);
+        if (run) group.appendChild(renderRunActions(records, run));
+        group.appendChild(renderSummary(records, run));
 
+        // Per-record cards only below the batch size where they stay readable.
+        if (records.length <= CARD_LIMIT) {
+          group.appendChild(renderCards(records));
+        } else {
+          const note = document.createElement('p');
+          note.className = 'stream-note';
+          note.innerHTML = `detail cards hidden for this ${num(records.length)}-record batch — ` +
+            (run ? `open the <a href="${esc(explorerHref(run))}">record explorer</a> for any record's JSON` : 'the explorer is unavailable in this browser');
+          group.appendChild(note);
+        }
+
+        els.stream.appendChild(group);
+        pruneRunGroups();
+
+        records.forEach((r) => {
           totals.total += 1;
           totals.latSum += Number(r.latency_ms) || 0;
           if (r.mode === 'Cached') totals.cached += 1;
           if (r.mode === 'Discovery') totals.disc += 1;
         });
-        els.stream.appendChild(frag);
-        // Show the new run's table first, not the bottom of its detail cards.
+        // Show the new run's table first, not the bottom of its cards.
         els.stream.scrollTop += divider.getBoundingClientRect().top - els.stream.getBoundingClientRect().top;
 
         els.hint.textContent = `${num(records.length)} record(s) · ${num(totals.cached)} cached · ${num(totals.disc)} discovery`;
