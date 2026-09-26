@@ -38,6 +38,17 @@ class UniversalParser:
         with self.family_lock:
             return dict(self.family_cache)
 
+    def reset_caches(self) -> dict:
+        """Drop every learned rule (fingerprint + family). Returns counts cleared."""
+        with self.cache_lock:
+            n_fp = len(self.cache)
+            self.cache.clear()
+            self._parsed_fps.clear()
+        with self.family_lock:
+            n_fam = len(self.family_cache)
+            self.family_cache.clear()
+        return {"fingerprint_cache": n_fp, "family_cache": n_fam}
+
     def store_rule(self, feat, rule):
         fp = json.dumps(feat, sort_keys=True)
         with self.cache_lock:
