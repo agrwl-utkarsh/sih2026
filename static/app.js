@@ -151,28 +151,28 @@
       const overview = document.createElement('section');
       overview.className = `output-overview ${statusClass}`;
       const explorer = run
-        ? `<a class="btn btn-mini" href="${esc(explorerHref(run))}">Explore full records <span aria-hidden="true">↗</span></a>`
+        ? `<a class="btn btn-mini" href="${esc(explorerHref(run))}">open full records →</a>`
         : '';
       overview.innerHTML = `
         <div class="overview-top">
           <div>
-            <div class="overview-eyebrow">INGEST COMPLETE · RUN SUMMARY</div>
+            <div class="overview-eyebrow">run summary</div>
             <h3>${esc(status)}</h3>
-            <p>${num(records.length)} log ${records.length === 1 ? 'entry was' : 'entries were'} translated into a consistent format.</p>
+            <p>${num(records.length)} log ${records.length === 1 ? 'entry' : 'entries'} normalized to the common schema.</p>
           </div>
           <div class="overview-actions">${explorer}<span class="overview-time">${wallMs == null ? '' : `${Number(wallMs).toFixed(0)} ms total`}</span></div>
         </div>
         <div class="overview-stats" aria-label="Run summary">
-          <div class="overview-stat"><span class="stat-dot dot-total"></span><b>${num(records.length)}</b><span>records</span></div>
-          <div class="overview-stat"><span class="stat-dot dot-cached"></span><b>${num(known)}</b><span>recognized</span></div>
-          <div class="overview-stat"><span class="stat-dot dot-discovery"></span><b>${num(discovered)}</b><span>new formats learned</span></div>
-          <div class="overview-stat"><span class="stat-dot dot-issues"></span><b>${num(issues)}</b><span>need attention</span></div>
-          <div class="overview-stat avg-stat"><b>${esc(avg)}<small>ms</small></b><span>avg per record</span></div>
+          <div class="overview-stat"><b>${num(records.length)}</b><span>records</span></div>
+          <div class="overview-stat"><b>${num(known)}</b><span>recognized</span></div>
+          <div class="overview-stat"><b>${num(discovered)}</b><span>new formats</span></div>
+          <div class="overview-stat"><b>${num(issues)}</b><span>need attention</span></div>
+          <div class="overview-stat"><b>${esc(avg)} ms</b><span>avg per record</span></div>
         </div>
         <div class="mode-explainer">
-          <span><i class="legend-known"></i><b>Recognized</b> · a saved parsing rule was reused</span>
-          <span><i class="legend-new"></i><b>Learned</b> · a rule was created for a new format</span>
-          ${issues ? '<span><i class="legend-issue"></i><b>Attention</b> · held or failed; open details to inspect</span>' : ''}
+          <span><b>recognized</b> — reused a saved rule</span>
+          <span><b>learned</b> — created a rule for a new format</span>
+          ${issues ? '<span><b>attention</b> — held or failed; open details to inspect</span>' : ''}
         </div>`;
 
       const list = document.createElement('div');
@@ -206,7 +206,7 @@
             ${meta ? `<div class="result-meta">${meta}</div>` : ''}${fields}
             <p class="result-why">${esc(details[1])}</p>
           </div>
-          ${href ? '<span class="result-open" aria-hidden="true">Details <b>↗</b></span>' : ''}
+          ${href ? '<span class="result-open" aria-hidden="true">details →</span>' : ''}
         </article>`;
       }).join('');
       list.innerHTML = cards || '<p class="dim">No records returned.</p>';
