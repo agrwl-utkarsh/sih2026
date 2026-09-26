@@ -167,6 +167,16 @@ def ingest_logs(batch: LogBatch, request: Request):
 def get_cache():
     return {"cache": parser.snapshot_cache(), "family_cache": parser.snapshot_family_cache()}
 
+@app.post("/api/logs/clear")
+def clear_cache():
+    """Reset all learned state: family cache, fingerprint cache, mined templates
+    and quarantine. Left unauthenticated on purpose — it backs the UI's Clear
+    Cache button and only drops in-memory caches that are fully re-derivable
+    from the next ingest."""
+    cleared = dict(parser.reset_caches())
+    cleared.update(template_tier.reset())
+    return {"status": "cleared", "cleared": cleared}
+
 @app.get("/api/logs/templates")
 def get_templates():
     return template_tier.templates_view()
