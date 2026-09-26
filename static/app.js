@@ -21,7 +21,7 @@
   /* ── shared toolkit ──────────────────────────────────── */
   /* esc / escText / clip / num / highlightJSON / MODE_CLASS / Store live in
      ui.js so the console and the record explorer cannot drift apart. */
-  const { esc, clip, num, highlightJSON, modeClass, recordNotes, Store } = window.ULP;
+  const { esc, clip, num, highlightJSON, modeClass, Store } = window.ULP;
 
   document.addEventListener('DOMContentLoaded', () => {
 
@@ -67,10 +67,7 @@
     const totals = { total: 0, cached: 0, disc: 0, latSum: 0 };
     let runCount = 0;
 
-    /** Above this many records per batch the console shows the table only. */
-    const CARD_LIMIT = 25;
-
-    /** Full tables kept in the console; older batches collapse to one line. */
+    /** Keep only the newest result groups expanded; older runs collapse to one line. */
     const RUN_GROUPS = 3;
 
     /* ── telemetry ─────────────────────────────────────── */
@@ -137,155 +134,96 @@
         </div>`;
     };
 
-    /** Build one parsed-output record row. */
-    const renderRecord = (r) => {
-      const cls = modeClass(r.mode);
-      const badge = r.mode === 'Discovery'
-        ? `discovery·${r.inferred_by === 'llm' ? 'llm' : 'heur'}`
-        : esc(String(r.mode || 'unknown')).toLowerCase();
-
-      const norm = r.normalized || {};
-      const preview = norm.message || norm.raw || r.error || '';
-
-      const row = document.createElement('div');
-      row.className = `record m-${cls}`;
-
-      const notes = recordNotes(r).map((n) =>
-        `<div class="rec-note${n.kind === 'hold' ? ' is-gate' : ''}">${esc(n.text)}</div>`);
-
-      row.innerHTML = `
-        <div class="rec-head" role="button" tabindex="0" aria-expanded="false">
-          <span class="mode-tag ${cls}">${badge}</span>
-          <span class="rec-kv"><b>fmt</b><span title="${esc(r.format || '')}">${esc(clip(r.format || 'unknown', 34))}</span></span>
-          <span class="rec-kv"><b>fam</b><span>${esc(r.family || 'generic')}</span></span>
-          <span class="rec-kv"><b>by</b><span>${esc(r.inferred_by || '—')}</span></span>
-          <span class="rec-kv"><b>lat</b><span class="v-lat">${esc(r.latency_ms ?? '—')}ms</span></span>
-          ${r.template ? `<span class="rec-kv"><b>tpl</b><span title="cluster #${esc(r.cluster_id ?? '')}">#${esc(r.cluster_id ?? '?')}</span></span>` : ''}
-          <span class="rec-spacer"></span>
-          <span class="rec-caret">▶</span>
+    const renderSummary = (records, run, wallMs = null) => {
+      const counts = records.reduce((acc, r) => {
+        const key = r.mode || 'Other';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+      const issues = (counts.Error || 0) + (counts.Quarantined || 0);
+      const known = counts.Cached || 0;
+      const discovered = counts.Discovery || 0;
+      const avg = records.length
+        ? (records.reduce((sum, r) => sum + (Number(r.latency_ms) || 0), 0) / records.length).toFixed(1)
+        : '0.0';
+      const status = issues ? `${num(issues)} need${issues === 1 ? 's' : ''} attention` : 'All records processed';
+      const statusClass = issues ? 'has-issues' : 'is-clear';
+      const overview = document.createElement('section');
+      overview.className = `output-overview ${statusClass}`;
+      const explorer = run
+        ? `<a class="btn btn-mini" href="${esc(explorerHref(run))}">Explore full records <span aria-hidden="true">↗</span></a>`
+        : '';
+      overview.innerHTML = `
+        <div class="overview-top">
+          <div>
+            <div class="overview-eyebrow">INGEST COMPLETE · RUN SUMMARY</div>
+            <h3>${esc(status)}</h3>
+            <p>${num(records.length)} log ${records.length === 1 ? 'entry was' : 'entries were'} translated into a consistent format.</p>
+          </div>
+          <div class="overview-actions">${explorer}<span class="overview-time">${wallMs == null ? '' : `${Number(wallMs).toFixed(0)} ms total`}</span></div>
         </div>
-        ${preview ? `<div class="rec-msg" title="${esc(clip(preview, 300))}">${esc(clip(preview, 220))}</div>` : ''}
-        ${notes.join('')}
-        <div class="rec-body">
-          <div class="rec-section">
-            <h4>extracted fields</h4>
-            <table class="table"><tbody class="rec-fields"></tbody></table>
-          </div>
-          <div class="rec-section">
-            <h4>normalized · common schema <button class="btn btn-mini rec-toggle">toggle</button></h4>
-            <pre class="json rec-json"></pre>
-          </div>
+        <div class="overview-stats" aria-label="Run summary">
+          <div class="overview-stat"><span class="stat-dot dot-total"></span><b>${num(records.length)}</b><span>records</span></div>
+          <div class="overview-stat"><span class="stat-dot dot-cached"></span><b>${num(known)}</b><span>recognized</span></div>
+          <div class="overview-stat"><span class="stat-dot dot-discovery"></span><b>${num(discovered)}</b><span>new formats learned</span></div>
+          <div class="overview-stat"><span class="stat-dot dot-issues"></span><b>${num(issues)}</b><span>need attention</span></div>
+          <div class="overview-stat avg-stat"><b>${esc(avg)}<small>ms</small></b><span>avg per record</span></div>
+        </div>
+        <div class="mode-explainer">
+          <span><i class="legend-known"></i><b>Recognized</b> · a saved parsing rule was reused</span>
+          <span><i class="legend-new"></i><b>Learned</b> · a rule was created for a new format</span>
+          ${issues ? '<span><i class="legend-issue"></i><b>Attention</b> · held or failed; open details to inspect</span>' : ''}
         </div>`;
 
-      /* fields table */
-      const tbody = row.querySelector('.rec-fields');
-      if (r.mode === 'Error' && r.error) {
-        tbody.innerHTML = `<tr><td class="k">error</td><td class="v">${esc(r.error)}</td></tr>`;
-      } else {
-        const merged = { ...(r.extracted_fields || {}), ...(norm.extra || {}) };
-        const entries = Object.entries(merged).filter(([k, v]) => k !== 'raw_message' && v != null && v !== '');
-        tbody.innerHTML = entries.length
-          ? entries.map(([k, v]) =>
-              `<tr><td class="k">${esc(k)}</td><td class="v">${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</td></tr>`).join('')
-          : `<tr><td colspan="2" class="dim">no fields extracted</td></tr>`;
-      }
-
-      /* normalized payload */
-      row.querySelector('.rec-json').innerHTML = highlightJSON(norm);
-
-      /* interactions */
-      const head = row.querySelector('.rec-head');
-      const toggle = () => {
-        const open = row.classList.toggle('is-open');
-        head.setAttribute('aria-expanded', String(open));
-      };
-      head.addEventListener('click', toggle);
-      head.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
-      });
-      row.querySelector('.rec-toggle').addEventListener('click', (e) => {
-        e.stopPropagation();
-        row.querySelector('.rec-json').classList.toggle('is-hidden');
-      });
-
-      return row;
-    };
-
-    /**
-     * One row per record, which stays readable at any batch size. Each row
-     * links into the explorer for that record's full normalized JSON — the
-     * console deliberately no longer builds a detail card per line (at 1,000
-     * lines those cards were ~56k DOM nodes on their own).
-     */
-    const renderSummary = (records, run) => {
-      const wrap = document.createElement('div');
-      wrap.className = 'table-wrap output-table-wrap';
-      wrap.innerHTML = `
-        <table class="table output-table" aria-label="Parsed output table">
-          <thead><tr><th class="num">#</th><th>mode</th><th>format</th><th>timestamp</th><th>severity</th><th>source</th><th>message</th><th class="num">lat</th></tr></thead>
-          <tbody>${records.map((r, i) => {
-            const norm = r.normalized || {};
-            const mode = String(r.mode || 'unknown');
-            const cls = modeClass(mode);
-            const href = run ? explorerHref(run, i) : null;
-            // One anchor per row (the index cell) keeps keyboard access without
-            // paying for a link element in every one of the eight cells.
-            const idx = href
-              ? `<a class="row-link" href="${esc(href)}" title="Open this record's normalized JSON in the explorer">${i + 1}</a>`
-              : String(i + 1);
-            return `<tr data-i="${i}"${href ? ` title="Open record #${i + 1} in the explorer"` : ''}>
-              <td class="num">${idx}</td>
-              <td><span class="mode-tag ${cls}">${esc(mode)}</span></td>
-              <td>${esc(r.format || '—')}</td>
-              <td>${esc(norm.timestamp || '—')}</td>
-              <td>${esc(norm.severity || '—')}</td>
-              <td>${esc(norm.source || '—')}</td>
-              <td class="output-message" title="${esc(clip(norm.message || norm.raw || r.error || '', 300))}">${esc(clip(norm.message || norm.raw || r.error || '—', 200))}</td>
-              <td class="num">${esc(r.latency_ms ?? '—')}</td>
-            </tr>`;
-          }).join('')}</tbody>
-        </table>`;
-
+      const list = document.createElement('div');
+      list.className = 'result-list';
+      list.setAttribute('aria-label', 'Parsed log records');
+      const cards = records.map((r, i) => {
+        const norm = r.normalized || {};
+        const mode = String(r.mode || 'Other');
+        const cls = modeClass(mode);
+        const details = {
+          Cached: ['Recognized format', 'A known parsing rule was reused.'],
+          Discovery: ['New format learned', `Format identified by ${r.inferred_by === 'llm' ? 'AI discovery' : 'automatic detection'}.`],
+          Quarantined: ['Held for review', 'This unfamiliar format is being checked before a rule is learned.'],
+          Error: ['Could not parse', 'Review the error details for this record.']
+        }[mode] || [mode, 'Record processed.'];
+        const message = norm.message || norm.raw || r.error || 'No message content';
+        const time = norm.timestamp ? String(norm.timestamp).replace('T', ' ').replace(/Z$/, ' UTC') : '';
+        const severity = norm.severity && norm.severity !== 'unknown' ? String(norm.severity) : '';
+        const source = norm.source && norm.source !== 'unknown' ? String(norm.source) : '';
+        const href = run ? explorerHref(run, i) : null;
+        const extra = Object.entries({ ...(r.extracted_fields || {}), ...(norm.extra || {}) })
+          .filter(([k, v]) => !['raw_message', 'message', 'timestamp', 'severity', 'source'].includes(k) && v != null && v !== '')
+          .slice(0, 3);
+        const meta = [time, source].filter(Boolean).map((x) => `<span>${esc(x)}</span>`).join('<span class="meta-sep">·</span>');
+        const fields = extra.length ? `<div class="result-fields">${extra.map(([k, v]) => `<span class="field-chip"><b>${esc(k)}</b> ${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</span>`).join('')}</div>` : '';
+        return `<article class="result-card m-${cls}" data-i="${i}" ${href ? `tabindex="0" role="link" aria-label="Open details for record ${i + 1}"` : ''}>
+          <div class="result-index">${String(i + 1).padStart(2, '0')}</div>
+          <div class="result-main">
+            <div class="result-card-top"><span class="mode-tag ${cls}">${esc(details[0])}</span>${severity ? `<span class="severity-pill sev-${esc(severity.toLowerCase())}">${esc(severity)}</span>` : ''}<span class="result-format">${esc(r.family || r.format || 'log record')}</span><span class="result-latency">${esc(r.latency_ms ?? '—')} ms</span></div>
+            <p class="result-message" title="${esc(message)}">${esc(clip(message, 260))}</p>
+            ${meta ? `<div class="result-meta">${meta}</div>` : ''}${fields}
+            <p class="result-why">${esc(details[1])}</p>
+          </div>
+          ${href ? '<span class="result-open" aria-hidden="true">Details <b>↗</b></span>' : ''}
+        </article>`;
+      }).join('');
+      list.innerHTML = cards || '<p class="dim">No records returned.</p>';
       if (run) {
-        // Whole-row click opens that record; the index anchor keeps keyboard
-        // access, and a live text selection (someone copying table cells) wins
-        // over navigation.
-        wrap.addEventListener('click', (e) => {
-          const row = e.target.closest('tbody tr[data-i]');
-          if (!row || e.target.closest('a')) return;
-          if (String(window.getSelection?.() ?? '').trim()) return;
-          window.location.assign(explorerHref(run, Number(row.dataset.i)));
+        list.addEventListener('click', (e) => {
+          const card = e.target.closest('.result-card[data-i]');
+          if (card && !String(window.getSelection?.() ?? '').trim()) window.location.assign(explorerHref(run, Number(card.dataset.i)));
+        });
+        list.addEventListener('keydown', (e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.result-card[data-i]')) {
+            e.preventDefault(); window.location.assign(explorerHref(run, Number(e.target.dataset.i)));
+          }
         });
       }
-      return wrap;
-    };
-
-    /** Call-to-action strip: the console shows the table, the explorer shows JSON. */
-    const renderRunActions = (records, run) => {
-      const el = document.createElement('div');
-      el.className = 'run-actions';
-      el.innerHTML = `
-        <a class="btn btn-primary" href="${esc(explorerHref(run))}">
-          <span class="btn-key">▤</span>open record explorer
-        </a>
-        <span class="run-actions-hint">
-          normalized JSON for all ${num(records.length)} records — searchable, one page at a time
-        </span>`;
-      return el;
-    };
-
-    /** Small batches keep the per-record cards: they are the nicer read at that size. */
-    const renderCards = (records) => {
-      const frag = document.createDocumentFragment();
-      records.forEach((r, i) => {
-        const row = renderRecord(r);
-        if (records.length <= 3 && i === 0) {
-          row.classList.add('is-open');
-          row.querySelector('.rec-head').setAttribute('aria-expanded', 'true');
-        }
-        frag.appendChild(row);
-      });
-      return frag;
+      const fragment = document.createDocumentFragment();
+      fragment.append(overview, list);
+      return fragment;
     };
 
     /**
@@ -297,13 +235,11 @@
       const groups = Array.from(els.stream.querySelectorAll('.run-group'));
       groups.slice(0, Math.max(0, groups.length - RUN_GROUPS)).forEach((group) => {
         if (group.querySelector('.run-collapsed')) return;
-        group.querySelector('.table-wrap')?.remove();
-        group.querySelector('.run-actions')?.remove();
-        group.querySelector('.stream-note')?.remove();
-        group.querySelectorAll('.record').forEach((card) => card.remove());
+        group.querySelector('.output-overview')?.remove();
+        group.querySelector('.result-list')?.remove();
         const line = document.createElement('div');
         line.className = 'run-collapsed';
-        line.innerHTML = `${esc(group.dataset.label || 'earlier run')} · table collapsed to keep this console responsive` +
+        line.innerHTML = `${esc(group.dataset.label || 'earlier run')} · result details collapsed to keep this console responsive` +
           (group.dataset.run ? ` — <a href="/records?run=${encodeURIComponent(group.dataset.run)}">open in explorer</a>` : '');
         group.appendChild(line);
       });
@@ -528,19 +464,7 @@
         divider.innerHTML = `<span>${esc(label)}</span>`;
         group.appendChild(divider);
 
-        if (run) group.appendChild(renderRunActions(records, run));
-        group.appendChild(renderSummary(records, run));
-
-        // Per-record cards only below the batch size where they stay readable.
-        if (records.length <= CARD_LIMIT) {
-          group.appendChild(renderCards(records));
-        } else {
-          const note = document.createElement('p');
-          note.className = 'stream-note';
-          note.innerHTML = `detail cards hidden for this ${num(records.length)}-record batch — ` +
-            (run ? `open the <a href="${esc(explorerHref(run))}">record explorer</a> for any record's JSON` : 'the explorer is unavailable in this browser');
-          group.appendChild(note);
-        }
+        group.appendChild(renderSummary(records, run, wall));
 
         els.stream.appendChild(group);
         pruneRunGroups();
