@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Record Explorer · Universal Log Pre-processing Framework</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -12,7 +12,6 @@
 <body>
     <div class="console explorer-console">
 
-        <!-- ── titlebar ───────────────────────────────────────────── -->
         <header class="titlebar">
             <div class="brand">
                 <span class="brand-mark">▮</span>
@@ -26,7 +25,6 @@
             </div>
         </header>
 
-        <!-- ── run meta strip ─────────────────────────────────────── -->
         <div class="telemetry" id="run-meta">
             <div class="tcell"><span class="tlabel">records</span><span class="tvalue" id="meta-total">—</span></div>
             <div class="tsep"></div>
@@ -37,14 +35,12 @@
             <div class="tcell"><span class="tlabel">captured</span><span class="tvalue" id="meta-at">—</span></div>
         </div>
 
-        <!-- ── toolbar: search + mode filters ─────────────────────── -->
         <div class="explorer-toolbar">
             <input id="search" class="search-input" type="search" autocomplete="off" spellcheck="false"
                    placeholder="search message, raw line or field values…   ( / )">
             <div class="chip-row" id="mode-filters" role="group" aria-label="Filter by processing mode"></div>
         </div>
 
-        <!-- ── list + detail ──────────────────────────────────────── -->
         <main class="explorer-main">
             <section class="pane pane-list">
                 <div class="pane-head">
@@ -65,7 +61,7 @@
         </main>
     </div>
 
-    <script src="/static/ui.js"></script>
+    <script src="/static/common.js"></script>
     <script src="/static/records.js"></script>
 </body>
 </html>

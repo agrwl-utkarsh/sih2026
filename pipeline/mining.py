@@ -176,7 +176,6 @@ class TemplateMinerTier:
         return {"enforce_mode":self.enforce,"novel_templates":len(items),"items":[dict(e,samples=e["samples"][:3]) for e in items[:100]]}
 
     def reset(self) -> dict:
-        """Drop mined templates, learned rules and quarantine. Returns counts cleared."""
         with self._lock:
             n_clusters = len(self._miner.drain.id_to_cluster) if self._miner else 0
             self._miner = build_miner() if DRAIN3_AVAILABLE else None

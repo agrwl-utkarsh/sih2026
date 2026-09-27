@@ -6,11 +6,11 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, StringConstraints
 from typing import List
 from typing_extensions import Annotated
-from pipeline.format_detector import DiscoveryEngine, DEFAULT_MODEL, _resolve_gemini_model, _resolve_groq_model, _resolve_anthropic_model
-from pipeline.parser import UniversalParser, KNOWN_FAMILIES
-from pipeline.normalizer import Normalizer
-from pipeline.template_miner import TemplateMinerTier
-from pipeline.format_gate import GATE
+from pipeline.llm import DiscoveryEngine, DEFAULT_MODEL, _resolve_gemini_model, _resolve_groq_model, _resolve_anthropic_model
+from pipeline.parse import UniversalParser, KNOWN_FAMILIES
+from pipeline.norm import Normalizer
+from pipeline.mining import TemplateMinerTier
+from pipeline.gate import GATE
 
 app = FastAPI(title="Format-Agnostic Two-Tier Log Pipeline (SIH26)")
 static_dir = Path(__file__).parent / "static"
@@ -23,9 +23,6 @@ def read_index():
 
 @app.get("/records")
 def read_records():
-    """Record explorer: per-record normalized JSON, one page at a time.
-    The run itself lives in the browser (localStorage), so this is just the
-    shell — see static/records.js."""
     return FileResponse(str(static_dir / "records.html"))
 
 discovery_engine = DiscoveryEngine()
@@ -176,10 +173,6 @@ def get_cache():
 
 @app.post("/api/logs/clear")
 def clear_cache():
-    """Reset all learned state: family cache, fingerprint cache, mined templates
-    and quarantine. Left unauthenticated on purpose — it backs the UI's Clear
-    Cache button and only drops in-memory caches that are fully re-derivable
-    from the next ingest."""
     cleared = dict(parser.reset_caches())
     cleared.update(template_tier.reset())
     return {"status": "cleared", "cleared": cleared}

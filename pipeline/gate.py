@@ -3,7 +3,7 @@ import logging, os, time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
-MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "format_gate.pkl"
+MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "gate.pkl"
 GATE_FEATURE_VERSION = 2
 try:
     _DEF_MARGIN = float(os.environ.get("GATE_MARGIN", "1.0"))
@@ -17,7 +17,7 @@ class FormatGate:
         self.info = {"loaded": False, "model_path": str(model_path or MODEL_PATH), "reason": None, "families": [], "threshold": None, "margin": _DEF_MARGIN, "trained_at": None, "n_train": 0}
         path = model_path or MODEL_PATH
         if not path.exists():
-            self.info["reason"] = "model artifact missing (run scripts/train_format_gate.py)"
+            self.info["reason"] = "model artifact missing (run python train_gate.py)"
             return
         try:
             import joblib

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Universal Log Pre-processing Framework</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -12,7 +12,6 @@
 <body>
     <div class="console">
 
-        <!-- ── titlebar ───────────────────────────────────────────── -->
         <header class="titlebar">
             <div class="brand">
                 <span class="brand-mark">▮</span>
@@ -28,7 +27,6 @@
             </div>
         </header>
 
-        <!-- ── telemetry strip ────────────────────────────────────── -->
         <div class="telemetry" id="telemetry">
             <div class="tcell"><span class="tlabel">total</span><span class="tvalue" id="stat-total">0</span></div>
             <div class="tsep"></div>
@@ -39,7 +37,6 @@
             <div class="tcell"><span class="tlabel">llm saved</span><span class="tvalue" id="stat-saved">0%</span></div>
         </div>
 
-        <!-- ── workspace: editor + stream ─────────────────────────── -->
         <main class="workspace">
 
             <section class="pane pane-editor">
@@ -105,7 +102,6 @@
             </section>
         </main>
 
-        <!-- ── runtime inspector: fingerprint cache only ─────────── -->
         <section class="pane pane-inspector">
             <div class="pane-head">
                 <h2 class="pane-title">runtime inspector</h2>
@@ -120,7 +116,7 @@
         </section>
     </div>
 
-    <script src="/static/ui.js"></script>
+    <script src="/static/common.js"></script>
     <script src="/static/app.js"></script>
 </body>
 </html>
