@@ -1,56 +1,48 @@
-# Log Pre-processing (SIH 2026)
+# Log Pre-processing
 
-Give it logs from anywhere (syslog, json, java/spring, k8s, csv, pipe, cef, whatever)
-and it normalizes them into one common schema: timestamp, source, event_type,
-severity, message, raw, extra.
+This project takes log messages in different formats and converts them into one common format.
+It can handle formats such as JSON, syslog, Java logs, Kubernetes logs, CSV, and CEF.
 
-Live demo: https://sih2026-w6sr.vercel.app
+## How it works
 
-## how it works
-
-```
-log line
-  -> fingerprint cache          (format already seen? done, no thinking)
-  -> drain3 template            (same template has a learned rule? done, no LLM call)
-  -> sklearn gate               (known family? or looks totally new?)
-  -> LLM "what format is this?" (once per NEW format, only if a key is set)
-  -> normalize to common schema
-```
-
-First time it sees a format it asks the LLM (or guesses with heuristics if no key),
-remembers the answer, so the 2nd time the same format comes in it's instant.
-
-## run it
-
-```bash
-pip install -r requirements.txt -r reqs-dev.txt
-python run_demo.py        # starts the server on :8000 and runs a sample
-# or
-uvicorn main:app --host 0.0.0.0 --port 8000
+```text
+Log message
+    |
+    v
+Check for a format seen before
+    |
+    +--> Yes: use the saved format
+    |
+    +--> No: find the log pattern
+              |
+              v
+        Check the format model
+              |
+              +--> Known format: use it
+              |
+              +--> New format: use an LLM if a key is available,
+                              otherwise use simple rules
+              |
+              v
+      Convert to the common log format
 ```
 
-then open http://localhost:8000 - paste logs (or pick a sample), hit ingest.
-the "record explorer" button opens the per-record JSON view.
+The common format includes the timestamp, source, event type, severity, message,
+original log, and other extra fields.
 
-LLM keys are optional (without them it just uses heuristics):
-- `GROQ_API_KEY` (free tier, good for the demo) or `GEMINI_API_KEY` or `ANTHROPIC_API_KEY`
-- `python check_llm.py` to see which provider it will use
+The project remembers formats it has already seen. This makes later messages
+faster to process.
 
-## the other files
+## Project files
 
-- `pytest tests/ -v` - the tests
-- `check_accuracy.py` - runs the pipeline over a generated corpus and prints accuracy numbers (needs `pip install -r reqs-pandas.txt`)
-- `train_gate.py` - retrains the sklearn model (`models/gate.pkl`)
-- `collect.sh` - tails a local log (syslog / journalctl / docker logs) and ships it to the API
-- `static/` - the two frontend pages (console + record explorer)
-- `vercel.json` - deployment config (that's how the live demo is hosted)
+- `main.py` - starts the API
+- `pipeline/` - reads, detects, and converts log messages
+- `static/` - contains the web pages
+- `tests/` - contains tests
+- `models/` - contains the saved format model
+- `run_demo.py` - demo script
+- `collect.sh` - sends local logs to the API
 
-## tech
+## Built with
 
-Python, FastAPI, Drain3, scikit-learn, pandas, bash - deployed on Vercel.
-
-## team
-
-- name here
-- name here
-- name here
+Python, FastAPI, Drain3, scikit-learn, pandas, and JavaScript.
