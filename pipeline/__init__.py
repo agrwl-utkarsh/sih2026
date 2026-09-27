@@ -1,5 +1,5 @@
-from .format_detector import DiscoveryEngine, LLMDiscoveryEngine
-from .parser import UniversalParser
-from .normalizer import Normalizer
+from .llm import DiscoveryEngine, LLMDiscoveryEngine
+from .parse import UniversalParser
+from .norm import Normalizer
 
 __all__ = ['DiscoveryEngine', 'LLMDiscoveryEngine', 'UniversalParser', 'Normalizer']

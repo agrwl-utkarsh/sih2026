@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import os, sys, json
-from pipeline.format_detector import DiscoveryEngine, DEFAULT_MODEL
+from pipeline.llm import DiscoveryEngine, DEFAULT_MODEL
 
 def mask(k): return f"Configured ({k[:4]}...{k[-4:]})" if k else "Not set"
 

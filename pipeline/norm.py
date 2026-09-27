@@ -1,5 +1,5 @@
 import json, re
-from .timeutil import parse_timestamp
+from .time_util import parse_timestamp
 
 ALIASES = {
     "timestamp": ["timestamp","@timestamp","ts","time","datetime","date","t","eventtime","devtime","time_local","log_time","logged_at"],

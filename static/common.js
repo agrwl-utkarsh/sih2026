@@ -1,24 +1,16 @@
-/* ============================================================
-   Shared front-end toolkit for the console (app.js) and the
-   record explorer (records.js): escaping, JSON highlighting,
-   record notes, and the cross-page run store.
 
-   The run store is what lets the explorer be a *second page*:
-   the console writes the last few ingest runs into localStorage
-   and the explorer reads them by id (sessionStorage alone is not
-   dependable across tabs).
-   ============================================================ */
+
 window.ULP = (() => {
   'use strict';
 
-  /* ── helpers ─────────────────────────────────────────── */
 
-  /** For attribute contexts — escapes quotes as well. */
+
+
   const esc = (v) => String(v ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-  /** For element content. Quotes stay literal so the JSON tokeniser can see them. */
+
   const escText = (v) => String(v ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -29,7 +21,7 @@ window.ULP = (() => {
 
   const num = (n) => Number(n || 0).toLocaleString('en-US');
 
-  /** Escapes markup-sensitive chars, then colourises JSON tokens. */
+
   const highlightJSON = (value) => {
     const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
     return escText(text).replace(
@@ -53,11 +45,7 @@ window.ULP = (() => {
   const MODES = ['Cached', 'Discovery', 'Quarantined', 'Error'];
   const modeClass = (mode) => MODE_CLASS[mode] || 'other';
 
-  /**
-   * Plain-language notes for one processed record. No jargon: the gate's
-   * internal shorthand (novel/distance/family guess) stays out of the
-   * record cards — the explorer surfaces it as labelled detail rows.
-   */
+
   const recordNotes = (r) => {
     const notes = [];
     if (r.quarantine) {
@@ -73,7 +61,7 @@ window.ULP = (() => {
     return notes;
   };
 
-  /** Labelled rows for the explorer's "pipeline detail" section. */
+
   const gateRows = (r) => {
     const g = r.gate;
     if (!g) return [];
@@ -95,7 +83,7 @@ window.ULP = (() => {
       .map(([k, v]) => [k, typeof v === 'object' ? JSON.stringify(v) : String(v)]);
   };
 
-  /* ── run store ───────────────────────────────────────── */
+
 
   const STORE_KEY = 'ulp.runs.v1';
   const MAX_RUNS = 3;
@@ -109,7 +97,7 @@ window.ULP = (() => {
         s.setItem(probe, '1');
         s.removeItem(probe);
         return s;
-      } catch { /* blocked or unavailable — try the next one */ }
+      } catch {}
     }
     return null;
   })();
@@ -129,12 +117,12 @@ window.ULP = (() => {
     try {
       safeStorage.setItem(STORE_KEY, JSON.stringify(runs));
       return true;
-    } catch { /* quota — caller retries with a slimmer payload */
+    } catch {
       return false;
     }
   };
 
-  /** Normalized shape used by the explorer's meta strip and filters. */
+
   const summarize = (records) => {
     const counts = {};
     const formats = {};
@@ -157,7 +145,7 @@ window.ULP = (() => {
     };
   };
 
-  /** Full payload minus the raw line — used only when the quota is hit. */
+
   const slim = (r) => {
     const { raw, ...rest } = r.normalized || {};
     return { ...r, normalized: rest };
@@ -181,7 +169,6 @@ window.ULP = (() => {
 
     if (writeRuns(next)) return run;
 
-    // Last resort: keep only the newest run, and drop raw lines from it.
     const fallback = { ...run, trimmed: true, records: run.records.map(slim) };
     return writeRuns([fallback]) ? fallback : null;
   };
@@ -192,7 +179,7 @@ window.ULP = (() => {
     return (id && runs.find((r) => r.id === id)) || runs[0] || null;
   };
   const latestRun = () => readRuns()[0] || null;
-  const clearRuns = () => { try { safeStorage?.removeItem(STORE_KEY); } catch { /* ignore */ } };
+  const clearRuns = () => { try { safeStorage?.removeItem(STORE_KEY); } catch {} };
 
   return {
     esc, escText, clip, num, highlightJSON,

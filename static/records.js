@@ -1,27 +1,17 @@
-/* ============================================================
-   Record explorer — the second page.
 
-   The ingest console renders one row per record; this page is
-   where the normalized JSON lives, so a 1,000-line run no longer
-   has to build a detail card for every line. It reads the run the
-   console captured (ULP.Store) and shows:
 
-     · the record list, grown 200 rows at a time as you scroll
-     · the selected record's full JSON in one detail panel
-     · search + mode filters across the whole run, not just the page
-   ============================================================ */
 (() => {
   'use strict';
 
   const { esc, num, highlightJSON, MODES, modeClass, recordNotes, gateRows, fieldsOf, Store } = window.ULP;
   const $ = (id) => document.getElementById(id);
 
-  const PAGE = 200;          // rows the list grows by as you scroll
+  const PAGE = 200;
 
-  /** Plain words for the list rows — "quarantined" is too wide for the pane. */
+
   const SHORT_MODE = { Cached: 'cached', Discovery: 'discovery', Quarantined: 'held', Error: 'error' };
 
-  /** Severities worth flagging inline; the rest stay in the detail pane. */
+
   const LOUD_SEV = new Set(['warn', 'warning', 'error', 'err', 'critical', 'crit',
                             'fatal', 'alert', 'emerg', 'emergency']);
 
@@ -40,18 +30,18 @@
 
   const state = {
     run: null,
-    hay: null,          // lowercased per-record haystack, built on first search
+    hay: null,
     query: '',
     mode: 'All',
     page: 0,
-    entries: [],        // filtered [{ r, abs }]
-    sel: 0             // absolute index into run.records
+    entries: [],
+    sel: 0
   };
 
   const absLabel = (i) => `#${num(i + 1)}`;
   const stamp = (iso) => (iso ? new Date(iso).toLocaleString() : '—');
 
-  /* ── run loading ─────────────────────────────────────── */
+
 
   const loadRun = (id) => {
     state.run = Store.getRun(id);
@@ -77,7 +67,7 @@
     document.title = `${num(c.total ?? run.records.length)} records · Record Explorer`;
   };
 
-  /* ── filtering ───────────────────────────────────────── */
+
 
   const haystack = (i) => {
     if (!state.hay) state.hay = state.run.records.map((r) => JSON.stringify(r).toLowerCase());
@@ -104,7 +94,7 @@
     renderDetail();
   };
 
-  /* ── list ────────────────────────────────────────────── */
+
 
   const pageCount = () => Math.max(1, Math.ceil(state.entries.length / PAGE));
   const clampPage = () => { state.page = Math.min(Math.max(0, state.page), pageCount() - 1); };
@@ -119,11 +109,6 @@
     }).join('');
   };
 
-  /**
-   * One list row, single line: mode · index · message, plus the only two
-   * meta bits worth scanning for — a loud severity and the clock time.
-   * Family, latency and the full timestamp live in the detail pane.
-   */
   const rowHTML = ({ r, abs }) => {
     const norm = r.normalized || {};
     const msg = norm.message || norm.raw || r.error || '—';
@@ -145,7 +130,7 @@
       </div>`;
   };
 
-  /** Only speaks up while more rows are waiting further down the scroll. */
+
   const updateListHint = () => {
     const total = state.entries.length;
     const shown = Math.min(total, (state.page + 1) * PAGE);
@@ -168,7 +153,7 @@
     els.list.innerHTML = slice.map(rowHTML).join('');
   };
 
-  /** The pager buttons are gone: hitting the bottom grows the list a page. */
+
   const appendPage = () => {
     const slice = state.entries.slice(state.page * PAGE, (state.page + 1) * PAGE);
     if (!slice.length) return;
@@ -176,7 +161,7 @@
     updateListHint();
   };
 
-  /* ── detail ──────────────────────────────────────────── */
+
 
   const renderDetail = () => {
     if (!state.run || !state.entries.length) { renderEmptyDetail(); return; }
@@ -255,7 +240,7 @@
     els.download.disabled = true;
   };
 
-  /* ── selection & navigation ──────────────────────────── */
+
 
   const select = (abs, { scroll = true } = {}) => {
     if (!state.run) return;
@@ -264,7 +249,7 @@
     const pos = state.entries.findIndex((e) => e.abs === state.sel);
     if (pos >= 0) {
       const page = Math.floor(pos / PAGE);
-      if (page > state.page) { state.page = page; renderList(); }   // rows already rendered stay put
+      if (page > state.page) { state.page = page; renderList(); }
       else { markSelected(); }
     }
     renderDetail();
@@ -289,7 +274,7 @@
     if (next) select(next.abs);
   };
 
-  /* ── events ──────────────────────────────────────────── */
+
 
   els.list.addEventListener('click', (e) => {
     const item = e.target.closest('.rl-item');
@@ -348,7 +333,7 @@
     if (e.key === 'PageUp') { e.preventDefault(); step(-PAGE); }
   });
 
-  /* ── boot ────────────────────────────────────────────── */
+
 
   if (!Store.available) {
     renderEmpty();
@@ -356,7 +341,7 @@
   }
 
   const params = new URLSearchParams(location.search);
-  loadRun(params.get('run'));   // ?run=<id>, else the newest captured run
+  loadRun(params.get('run'));
   if (!state.run) return;
   renderRunMeta();
 

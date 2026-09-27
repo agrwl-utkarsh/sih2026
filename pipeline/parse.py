@@ -1,5 +1,5 @@
 import json, re, threading, csv, io
-from .timeutil import parse_timestamp
+from .time_util import parse_timestamp
 
 def strip_ansi(s: str) -> str:
     return re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', s)
@@ -39,7 +39,6 @@ class UniversalParser:
             return dict(self.family_cache)
 
     def reset_caches(self) -> dict:
-        """Drop every learned rule (fingerprint + family). Returns counts cleared."""
         with self.cache_lock:
             n_fp = len(self.cache)
             self.cache.clear()

@@ -1,9 +1,7 @@
-/* ============================================================
-   Universal Log Pre-processing Framework · operator console
-   Monospace-first, low-chroma, hairline structure.
-   ============================================================ */
 
-/* ── tokens ─────────────────────────────────────────────── */
+
+
+
 :root {
     --bg: #0a0b0e;
     --bg-2: #0d0f14;
@@ -29,7 +27,7 @@
     --gutter-w: 3.25rem;
 }
 
-/* ── reset ──────────────────────────────────────────────── */
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body {
@@ -46,7 +44,7 @@ html, body {
     text-rendering: optimizeLegibility;
 }
 
-/* faint engineering grid, kept well below the content */
+
 body::before {
     content: '';
     position: fixed;
@@ -63,7 +61,7 @@ body::before {
 
 h1, h2, h3, h4, p { margin: 0; font-weight: 500; }
 
-/* ── scrollbars ─────────────────────────────────────────── */
+
 * { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
 *::-webkit-scrollbar { width: 9px; height: 9px; }
 *::-webkit-scrollbar-track { background: transparent; }
@@ -75,7 +73,7 @@ h1, h2, h3, h4, p { margin: 0; font-weight: 500; }
 }
 *::-webkit-scrollbar-thumb:hover { background: var(--text-3); background-clip: content-box; }
 
-/* ── shell ──────────────────────────────────────────────── */
+
 .console {
     position: relative;
     z-index: 1;
@@ -87,7 +85,7 @@ h1, h2, h3, h4, p { margin: 0; font-weight: 500; }
     gap: 10px;
 }
 
-/* ── titlebar ───────────────────────────────────────────── */
+
 .titlebar {
     display: flex;
     align-items: center;
@@ -111,7 +109,7 @@ h1, h2, h3, h4, p { margin: 0; font-weight: 500; }
 
 .titlebar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
-/* ── telemetry ──────────────────────────────────────────── */
+
 .telemetry {
     display: flex;
     align-items: stretch;
@@ -150,7 +148,7 @@ h1, h2, h3, h4, p { margin: 0; font-weight: 500; }
 }
 
 
-/* ── panes ──────────────────────────────────────────────── */
+
 .pane {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -202,7 +200,7 @@ h1, h2, h3, h4, p { margin: 0; font-weight: 500; }
     align-items: start;
 }
 
-/* ── buttons ────────────────────────────────────────────── */
+
 .btn {
     display: inline-flex;
     align-items: center;
@@ -237,8 +235,6 @@ h1, h2, h3, h4, p { margin: 0; font-weight: 500; }
 .btn-mini { padding: 3px 8px; font-size: 10px; color: var(--text-2); }
 .btn-mini:hover { color: var(--text); }
 
-/* ── nav buttons: the cross-page links (record explorer / console),
-      deliberately bigger and louder than action buttons ───────── */
 .btn-nav {
     padding: 10px 18px;
     font-size: 13px;
@@ -258,9 +254,6 @@ h1, h2, h3, h4, p { margin: 0; font-weight: 500; }
 }
 .btn-nav:focus-visible { outline: 3px solid #d2e4f8; outline-offset: 3px; }
 
-/* ── cache reset: same size, weight and contrast as the nav buttons so it
-      is impossible to miss, but tinted red — it destroys learned state and
-      should not be mistaken for the neighbouring navigation link ────── */
 .btn-nav-reset {
     padding: 10px 18px;
     font-size: 13px;
@@ -288,7 +281,7 @@ h1, h2, h3, h4, p { margin: 0; font-weight: 500; }
 }
 .btn-primary .btn-key { opacity: 0.6; }
 
-/* ── sample select ──────────────────────────────────────── */
+
 .select-wrap {
     display: inline-flex;
     align-items: center;
@@ -329,7 +322,7 @@ select {
 select:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 select option { background: var(--surface-2); color: var(--text); }
 
-/* ── log editor ─────────────────────────────────────────── */
+
 .editor {
     position: relative;
     display: flex;
@@ -373,7 +366,7 @@ select option { background: var(--surface-2); color: var(--text); }
 #log-input::placeholder { color: var(--text-3); }
 .editor:focus-within { box-shadow: inset 0 0 0 1px rgba(127, 167, 212, 0.22); }
 
-/* ── statusline ─────────────────────────────────────────── */
+
 .statusline {
     display: flex;
     align-items: center;
@@ -401,7 +394,7 @@ select option { background: var(--surface-2); color: var(--text); }
 
 .pane-actions { display: flex; gap: 8px; padding: 10px 11px; flex-wrap: wrap; }
 
-/* ── output stream ──────────────────────────────────────── */
+
 .stream {
     padding: 10px 11px;
     max-height: 640px;
@@ -442,7 +435,7 @@ select option { background: var(--surface-2); color: var(--text); }
 .run-divider::after { content: ''; flex: 1 1 auto; height: 1px; background: var(--line); }
 .run-divider span { white-space: nowrap; }
 
-/* one parsed record */
+
 .record {
     border: 1px solid var(--line);
     border-left-width: 2px;
@@ -557,7 +550,7 @@ select option { background: var(--surface-2); color: var(--text); }
     gap: 8px;
 }
 
-/* ── tables ─────────────────────────────────────────────── */
+
 .table-wrap { border: 1px solid var(--line); border-radius: 2px; overflow: auto; max-height: 380px; }
 .output-table-wrap { max-height: 420px; flex: none; }
 .output-table { min-width: 700px; }
@@ -592,7 +585,7 @@ select option { background: var(--surface-2); color: var(--text); }
 .table td.v { color: var(--warn); }
 .table .dim, td.dim { color: var(--text-3); text-align: center; }
 
-/* ── json / pre blocks ──────────────────────────────────── */
+
 pre.json {
     margin: 0;
     background: var(--bg);
@@ -616,7 +609,7 @@ pre.json.is-hidden { display: none; }
 .j-bool { color: var(--info); }
 .j-null { color: var(--text-3); }
 
-/* ── inspector: fingerprint cache only ──────────────────── */
+
 .inspector-count {
     font-size: 13px;
     font-weight: 700;
@@ -632,7 +625,7 @@ pre.json.is-hidden { display: none; }
 .inspector-body { padding: 11px; }
 .inspector-body pre.json { max-height: 280px; }
 
-/* ── footer ─────────────────────────────────────────────── */
+
 .footer {
     text-align: center;
     padding: 14px 8px 0;
@@ -642,7 +635,7 @@ pre.json.is-hidden { display: none; }
     text-transform: uppercase;
 }
 
-/* ── responsive ─────────────────────────────────────────── */
+
 @media (max-width: 1080px) {
     .workspace { grid-template-columns: minmax(0, 1fr); }
     .stream { max-height: 520px; }
@@ -661,15 +654,13 @@ pre.json.is-hidden { display: none; }
     * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 
-/* ============================================================
-   Record explorer — the second page.
-   Console keeps the table; this page owns the per-record JSON.
-   ============================================================ */
+
+
 
 .explorer-console { gap: 9px; }
 .explorer-console .titlebar-right { gap: 8px; }
 
-/* console-side affordances that point at the explorer */
+
 .run-actions {
     display: flex;
     align-items: center;
@@ -701,7 +692,7 @@ pre.json.is-hidden { display: none; }
 .output-table a.row-link:hover { color: var(--accent); }
 .output-table a.row-link .mode-tag { pointer-events: none; }
 
-/* toolbar */
+
 .explorer-toolbar {
     display: flex;
     align-items: center;
@@ -746,7 +737,7 @@ pre.json.is-hidden { display: none; }
 .chip-count { color: var(--text-3); font-variant-numeric: tabular-nums; }
 .chip.is-active .chip-count { color: var(--accent); }
 
-/* list + detail */
+
 .explorer-main {
     display: grid;
     grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
@@ -766,9 +757,7 @@ pre.json.is-hidden { display: none; }
 }
 .rec-list:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 
-/* One row per record: mode word, index, message, and — only when they
-   earn the space — a loud severity and the clock time. The mode keeps its
-   colour but loses the filled box, so a long list reads as text, not chips. */
+
 .rl-item {
     display: flex;
     align-items: baseline;
@@ -860,7 +849,7 @@ pre.raw {
     .rec-list, .detail { max-height: 420px; }
 }
 
-/* one batch per section — old batches collapse to a single line */
+
 .run-group { display: flex; flex-direction: column; gap: 7px; }
 .run-collapsed {
     font-size: 10.5px;
@@ -869,11 +858,9 @@ pre.raw {
 }
 .run-collapsed a { color: var(--accent); }
 
-/* ── run summary + result cards ─────────────────────────────
    Same flat console style as everything else: one mono font,
-   hairline borders, no gradients, no glow, no pills.          */
 
-/* run summary block */
+
 .output-overview {
     padding: 9px 11px;
     border: 1px solid var(--line);
@@ -896,7 +883,7 @@ pre.raw {
 .overview-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .overview-time { color: var(--text-3); font-size: 10px; font-variant-numeric: tabular-nums; }
 
-/* summary counts — same label/value pattern as the telemetry strip */
+
 .overview-stats {
     display: flex;
     flex-wrap: wrap;
@@ -914,7 +901,7 @@ pre.raw {
     color: var(--text-3);
 }
 
-/* one-line legend for the status labels used below */
+
 .mode-explainer {
     display: flex;
     flex-wrap: wrap;
@@ -925,7 +912,7 @@ pre.raw {
 }
 .mode-explainer b { color: var(--text-2); font-weight: 600; }
 
-/* result cards — flat rows, status shown by the left edge + tag */
+
 .result-list { display: flex; flex-direction: column; gap: 7px; }
 .result-card {
     display: grid;
@@ -953,7 +940,7 @@ pre.raw {
 }
 .result-main { min-width: 0; }
 .result-card-top { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
-/* mode tags reuse the base square .mode-tag style above — no overrides */
+
 .result-latency { margin-left: auto; color: var(--text-3); font-size: 10px; font-variant-numeric: tabular-nums; }
 .severity-pill {
     padding: 2px 6px;

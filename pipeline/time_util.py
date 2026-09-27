@@ -33,7 +33,6 @@ def parse_timestamp(value, now=None) -> str | None:
             div = LEN_DIV.get(len(s))
             if div:
                 iv = int(s)
-                # quick range check using EPOCH_RANGES
                 for lo, hi, d in EPOCH_RANGES:
                     if d == div and lo <= iv / (1 if d == 1 else 1) <= hi or (div == 1 and lo <= iv <= hi):
                         if (div == 1 and 1e8 <= iv <= 4.1e9) or div != 1:

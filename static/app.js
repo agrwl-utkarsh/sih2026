@@ -1,7 +1,5 @@
-/* ============================================================
-   Universal Log Pre-processing Framework · frontend controller
-   Preserves: ingest, sample fixtures, cache reset, inspector.
-   ============================================================ */
+
+
 
 (() => {
   'use strict';
@@ -17,14 +15,15 @@
     }
   };
 
-  /* ── shared toolkit ──────────────────────────────────── */
-  /* esc / escText / clip / num / highlightJSON / MODE_CLASS / Store live in
-     ui.js so the console and the record explorer cannot drift apart. */
+
+
+  
+
   const { esc, num, highlightJSON, modeClass, Store } = window.ULP;
 
   document.addEventListener('DOMContentLoaded', () => {
 
-    /* ── element map ───────────────────────────────────── */
+
     const els = {
       sample: $('sample-select'),
       input: $('log-input'),
@@ -36,12 +35,10 @@
       stream: $('results-container'),
       slMode: $('sl-mode'),
       slCount: $('sl-count'),
-      // telemetry
       total: $('stat-total'),
       cached: $('stat-cached'),
       disc: $('stat-discovery'),
       saved: $('stat-saved'),
-      // inspector — fingerprint cache only
       cacheOut: $('cache-output'),
       fingerprintCount: $('count-fingerprint')
     };
@@ -49,10 +46,10 @@
     const totals = { total: 0, cached: 0, disc: 0 };
     let runCount = 0;
 
-    /** Keep only the newest result groups expanded; older runs collapse to one line. */
+
     const RUN_GROUPS = 3;
 
-    /* ── telemetry ─────────────────────────────────────── */
+
     const paintTelemetry = () => {
       els.total.textContent = num(totals.total);
       els.cached.textContent = num(totals.cached);
@@ -65,7 +62,7 @@
       paintTelemetry();
     };
 
-    /* ── editor: gutter + statusline ───────────────────── */
+
     const syncGutter = () => {
       const lines = els.input.value.split('\n').length;
       const gutter = els.gutter;
@@ -98,8 +95,8 @@
     els.input.addEventListener('click', syncGutter);
     els.input.addEventListener('keyup', syncGutter);
 
-    /* ── stream ────────────────────────────────────────── */
-    /** Runs kept in the browser, so the explorer can be opened again later. */
+
+
     const explorerHref = (run, index = null) =>
       `/records?run=${encodeURIComponent(run.id)}${index == null ? '' : `&i=${index + 1}`}`;
 
@@ -201,11 +198,6 @@
       return fragment;
     };
 
-    /**
-     * Only the newest few batches keep a full table in the DOM; older ones
-     * collapse to a one-line link, so a demo that keeps ingesting does not
-     * pile tables up until the page crawls.
-     */
     const pruneRunGroups = () => {
       const groups = Array.from(els.stream.querySelectorAll('.run-group'));
       groups.slice(0, Math.max(0, groups.length - RUN_GROUPS)).forEach((group) => {
@@ -262,19 +254,16 @@
 
     const scrollToBottom = () => { els.stream.scrollTop = els.stream.scrollHeight; };
 
-    /* ── inspector: fingerprint cache only ─────────────── */
+
     const refreshCache = async () => {
       const d = await fetchJSON('/api/logs/cache');
       if (!d) return;
       const fps = Array.isArray(d.cache) ? d.cache : [];
       els.cacheOut.innerHTML = highlightJSON(fps);
-      // Guarded: markup and controller have drifted apart before (the badge was
-      // dropped in 50eb973 while this line survived), and an unguarded write
-      // would throw out of the DOMContentLoaded handler and kill every binding.
       if (els.fingerprintCount) els.fingerprintCount.textContent = num(fps.length);
     };
 
-    /* ── sample fixtures ───────────────────────────────── */
+
     els.sample.addEventListener('change', (e) => {
       if (!e.target.value) return;
       els.input.value = e.target.value;
@@ -283,7 +272,7 @@
       setMode('loaded');
     });
 
-    /* ── stream controls ───────────────────────────────── */
+
     els.clearStream.addEventListener('click', () => {
       Store.clearRuns();
       renderEmpty();
@@ -291,7 +280,7 @@
       resetTotals();
     });
 
-    /* ── cache reset ───────────────────────────────────── */
+
     els.clearCache.addEventListener('click', async () => {
       if (!confirm('Reset all learned families, fingerprints, templates and quarantine?')) return;
       const btn = els.clearCache;
@@ -311,7 +300,7 @@
       }
     });
 
-    /* ── ingest ────────────────────────────────────────── */
+
     const runIngest = async () => {
       const raw = els.input.value.trim();
       if (!raw) {
@@ -362,7 +351,6 @@
 
         pending.remove();
 
-        // Persist each run so the console can restore it after visiting the explorer.
         runCount += 1;
         const label = `run #${runCount} · ${num(records.length)} record${records.length === 1 ? '' : 's'} · ${wall.toFixed(1)}ms`;
         const run = Store.saveRun({ records, lines: logs, wallMs: wall, label });
@@ -374,7 +362,6 @@
           if (r.mode === 'Cached') totals.cached += 1;
           if (r.mode === 'Discovery') totals.disc += 1;
         });
-        // Show the new run's table first, not the bottom of its cards.
         els.stream.scrollTop += divider.getBoundingClientRect().top - els.stream.getBoundingClientRect().top;
 
         paintTelemetry();
@@ -397,7 +384,7 @@
 
     els.run.addEventListener('click', runIngest);
 
-    /* ⌘/ctrl + ⏎ runs the ingest from anywhere in the console */
+
     document.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
@@ -405,7 +392,7 @@
       }
     });
 
-    /* ── boot ──────────────────────────────────────────── */
+
     restoreStream();
     syncGutter();
     paintTelemetry();
